@@ -13,18 +13,51 @@ import { bootstrapApp, useAppStore } from "./stores/app-store";
 
 export function App() {
   const view = useAppStore((state) => state.view);
-  const handleEvent = useAppStore((state) => state.handleEvent);
   const setDialog = useAppStore((state) => state.setDialog);
 
   useEffect(() => {
     void bootstrapApp();
-    const offEvent = window.pi.onEvent(handleEvent);
+    let text = "";
+    let thinking = "";
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      const handle = useAppStore.getState().handleEvent;
+      if (thinking) {
+        const delta = thinking;
+        thinking = "";
+        handle({ type: "thinking_delta", delta });
+      }
+      if (text) {
+        const delta = text;
+        text = "";
+        handle({ type: "text_delta", delta });
+      }
+    };
+    const offEvent = window.pi.onEvent((event) => {
+      if (event.type === "text_delta" && event.delta) {
+        text += event.delta;
+        if (!frame) frame = requestAnimationFrame(flush);
+        return;
+      }
+      if (event.type === "thinking_delta" && event.delta) {
+        thinking += event.delta;
+        if (!frame) frame = requestAnimationFrame(flush);
+        return;
+      }
+      if (frame) {
+        cancelAnimationFrame(frame);
+        flush();
+      }
+      useAppStore.getState().handleEvent(event);
+    });
     const offDialog = window.pi.onDialog(setDialog);
     return () => {
+      if (frame) cancelAnimationFrame(frame);
       offEvent();
       offDialog();
     };
-  }, [handleEvent, setDialog]);
+  }, [setDialog]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

@@ -4,15 +4,28 @@ import { BrowserWindow, app, shell } from "electron";
 import { AgentHost } from "./agent-host";
 import { setCatalogListener } from "./catalog";
 import { DialogBroker } from "./dialog-broker";
+import { createEventPump } from "./event-pump";
 import { registerIpc } from "./ipc";
 import { loadPrefs, savePrefs } from "./prefs";
 
 const dialogs = new DialogBroker();
+let pump: ReturnType<typeof createEventPump> | undefined;
 const host = new AgentHost(dialogs, (event) => {
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send("session:event", event);
-  }
+  pump?.emit(event);
 });
+pump = createEventPump(host);
+
+function bindWindowPause(window: BrowserWindow): void {
+  const update = () => {
+    const paused = BrowserWindow.getAllWindows().every((item) => item.isDestroyed() || !item.isFocused() || item.isMinimized());
+    pump?.setPaused(paused);
+  };
+  window.on("blur", update);
+  window.on("focus", update);
+  window.on("minimize", update);
+  window.on("restore", update);
+  window.on("show", update);
+}
 
 function createWindow(): BrowserWindow {
   const prefs = loadPrefs();
@@ -79,11 +92,13 @@ app.whenReady().then(async () => {
     }
   });
   const window = createWindow();
+  bindWindowPause(window);
   dialogs.setWindow(window);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       const next = createWindow();
+      bindWindowPause(next);
       dialogs.setWindow(next);
     }
   });

@@ -61,7 +61,7 @@ export function collectDisplayMessages(session: {
   messages: unknown[];
   sessionManager: { getBranch: () => SessionEntry[] };
 }): ChatMessage[] {
-  const fromEntries = session.sessionManager.getBranch().flatMap((entry) =>
+  const persisted = session.sessionManager.getBranch().flatMap((entry) =>
     sessionEntryToContextMessages(entry)
       .filter((message) => {
         const item = message as { role?: string; display?: boolean };
@@ -69,13 +69,41 @@ export function collectDisplayMessages(session: {
       })
       .map(serializeMessage),
   );
-  if (fromEntries.length > 0) return fromEntries;
-  return session.messages
+  const live = session.messages
     .filter((message) => {
       const item = message as { role?: string; display?: boolean };
       return item.role !== "custom" || item.display === true;
     })
     .map(serializeMessage);
+  if (persisted.length === 0) return live;
+  return mergeStreamingTail(persisted, live);
+}
+
+function lastUserIndex(messages: ChatMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "user") return index;
+  }
+  return -1;
+}
+
+function mergeStreamingTail(persisted: ChatMessage[], live: ChatMessage[]): ChatMessage[] {
+  if (live.length === 0) return persisted;
+  const liveUser = lastUserIndex(live);
+  const persistedUser = lastUserIndex(persisted);
+  if (liveUser < 0 || persistedUser < 0) {
+    const lastPersisted = persisted[persisted.length - 1];
+    const lastLive = live[live.length - 1];
+    if (lastPersisted && lastLive && lastPersisted.role === lastLive.role && lastLive.role === "assistant") {
+      return [...persisted.slice(0, -1), lastLive];
+    }
+    return persisted;
+  }
+  const liveText = contentPlainText(live[liveUser].content);
+  const persistedText = contentPlainText(persisted[persistedUser].content);
+  if (liveText && liveText === persistedText) {
+    return [...persisted.slice(0, persistedUser), ...live.slice(liveUser)];
+  }
+  return persisted;
 }
 
 export function firstUserPreview(messages: ChatMessage[]): string | undefined {

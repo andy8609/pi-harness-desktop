@@ -105,6 +105,15 @@ export class AgentHost {
     });
   }
 
+  isBusy(): boolean {
+    const session = this.runtime?.session;
+    return Boolean(session?.isStreaming || session?.isCompacting || this.activityTimer);
+  }
+
+  pushUiSnapshot(): void {
+    this.pushSnapshot();
+  }
+
   getCwd(): string {
     return this.cwd;
   }
@@ -219,12 +228,15 @@ export class AgentHost {
   private setActivity(message: string): void {
     const now = Date.now();
     if (!this.activityStartedAt) this.activityStartedAt = now;
+    const unchanged = this.activityLabel === message && Boolean(this.activityTimer);
     this.activityLabel = message;
-    this.emit({
-      type: "activity",
-      message,
-      elapsed: now - this.activityStartedAt,
-    });
+    if (!unchanged) {
+      this.emit({
+        type: "activity",
+        message,
+        elapsed: now - this.activityStartedAt,
+      });
+    }
     if (this.activityTimer) return;
     this.activityTimer = setInterval(() => {
       if (!this.activityStartedAt) return;

@@ -3,6 +3,8 @@ out/
 dist/
 release/
 .codebuddy/
+docs/
+.pi/
 *.log
 .DS_Store
 *.tsbuildinfo

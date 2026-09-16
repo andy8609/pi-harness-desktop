@@ -1,0 +1,50 @@
+appId: com.pi.desktop
+productName: Pi Desktop
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+asar: true
+
+# ---------- Windows ----------
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
+  # 关闭 exe 资源编辑（图标 / 版本信息 / 签名）。
+  # 原因：该步骤依赖 winCodeSign 里的 rcedit.exe，而 winCodeSign 压缩包内含 macOS 符号链接，
+  # 普通 Windows 账号解压会报 "Cannot create symbolic link"（除非开启「开发者模式」或以管理员运行）。
+  # 需要完整资源编辑 / 代码签名时：开启开发者模式后执行 `npm run pack:win:sign`。
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Pi Desktop
+
+# ---------- macOS ----------
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.developer-tools
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  # 本地未签名打包使用；正式签名 / 公证请删除本行并配置 Apple 证书。
+  identity: null
+dmg:
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}

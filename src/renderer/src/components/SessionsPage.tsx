@@ -1,0 +1,179 @@
+import { useEffect, useState } from "react";
+import type { TreeNode } from "@shared/types";
+import { formatTime } from "../lib/text";
+import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+import { SessionTree } from "./SessionTree";
+
+function sessionTitle(session: { name?: string; firstMessage: string; id: string }): string {
+  return session.name || session.firstMessage.slice(0, 40) || session.id.slice(0, 8);
+}
+
+export function SessionsPage() {
+  const sessions = useAppStore((state) => state.sessions);
+  const snapshot = useAppStore((state) => state.snapshot);
+  const applySnapshot = useAppStore((state) => state.applySnapshot);
+  const pushToast = useAppStore((state) => state.pushToast);
+  const setView = useAppStore((state) => state.setView);
+  const [tree, setTree] = useState<TreeNode[]>([]);
+  const [name, setName] = useState("");
+  const [compactHint, setCompactHint] = useState("");
+  const [selectedPath, setSelectedPath] = useState<string>();
+
+  const currentPath = snapshot?.sessionFile;
+  const previewPath = selectedPath ?? currentPath;
+
+  const loadTree = async (path?: string) => {
+    try {
+      setTree(await window.pi.getTree(path));
+    } catch {
+      setTree([]);
+    }
+  };
+
+  useEffect(() => {
+    void refreshModelsAndSessions();
+  }, []);
+
+  useEffect(() => {
+    void loadTree(previewPath);
+  }, [previewPath]);
+
+  const restoreSession = async (path: string) => {
+    applySnapshot(await window.pi.switchSession(path));
+    await refreshModelsAndSessions();
+    setSelectedPath(path);
+    setView("chat");
+  };
+
+  const activatePreviewSession = async () => {
+    if (previewPath && previewPath !== currentPath) {
+      applySnapshot(await window.pi.switchSession(previewPath));
+      setSelectedPath(previewPath);
+    }
+  };
+
+  return (
+    <section className="h-full overflow-auto px-6 py-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">会话</h1>
+          <p className="text-sm text-[#9a937c]">单击预览会话树，双击还原到对话窗口</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="rounded-lg bg-[#c4d45a] px-3 py-1.5 text-sm text-[#16180f]"
+            onClick={async () => {
+              applySnapshot(await window.pi.newSession());
+              await refreshModelsAndSessions();
+              setView("chat");
+            }}
+          >
+            新建
+          </button>
+          <button
+            className="rounded-lg border border-[#33392a] px-3 py-1.5 text-sm"
+            onClick={async () => {
+              const next = await window.pi.importJsonl();
+              if (next) {
+                applySnapshot(next);
+                await refreshModelsAndSessions();
+                setView("chat");
+              }
+            }}
+          >
+            导入
+          </button>
+          <button className="rounded-lg border border-[#33392a] px-3 py-1.5 text-sm" onClick={() => void window.pi.exportJsonl()}>
+            导出 JSONL
+          </button>
+          <button className="rounded-lg border border-[#33392a] px-3 py-1.5 text-sm" onClick={() => void window.pi.exportHtml()}>
+            导出 HTML
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        <input className="rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-sm" placeholder="会话名称" value={name} onChange={(e) => setName(e.target.value)} />
+        <button
+          className="rounded border border-[#33392a] px-3 py-1 text-sm"
+          onClick={async () => {
+            if (!name.trim()) return;
+            await window.pi.nameSession(name.trim());
+            await refreshModelsAndSessions();
+          }}
+        >
+          命名当前会话
+        </button>
+        <button
+          className="rounded border border-[#33392a] px-3 py-1 text-sm"
+          onClick={async () => {
+            applySnapshot(await window.pi.clone());
+            await refreshModelsAndSessions();
+            pushToast("info", "已复制当前分支");
+          }}
+        >
+          Clone
+        </button>
+        <input className="rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-sm" placeholder="压缩说明（可选）" value={compactHint} onChange={(e) => setCompactHint(e.target.value)} />
+        <button
+          className="rounded border border-[#33392a] px-3 py-1 text-sm"
+          onClick={async () => {
+            await window.pi.compact(compactHint || undefined);
+            pushToast("info", "压缩完成");
+            await loadTree(previewPath);
+          }}
+        >
+          Compact
+        </button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-2">
+          {sessions.map((session) => {
+            const selected = previewPath === session.path;
+            const isCurrent = currentPath === session.path;
+            return (
+              <button
+                key={session.path}
+                className={`block w-full rounded-xl border px-4 py-3 text-left ${
+                  selected ? "border-[#c4d45a] bg-[#22261c]" : "border-[#33392a] bg-[#1a1d16] hover:border-[#c4d45a]"
+                }`}
+                onClick={() => setSelectedPath(session.path)}
+                onDoubleClick={() => void restoreSession(session.path)}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate font-medium">{sessionTitle(session)}</span>
+                  <span className="shrink-0 text-xs text-[#9a937c]">{session.messageCount} 条</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-2 text-xs text-[#9a937c]">
+                  <span>{formatTime(session.modified)}</span>
+                  {isCurrent && <span className="rounded bg-[#c4d45a] px-1.5 py-0.5 text-[10px] text-[#16180f]">当前</span>}
+                </div>
+              </button>
+            );
+          })}
+          {sessions.length === 0 && <div className="text-sm text-[#9a937c]">当前项目还没有会话。</div>}
+        </div>
+        <div>
+          <h2 className="mb-2 font-medium">会话树</h2>
+          <p className="mb-2 text-xs text-[#9a937c]">单击选中节点，双击跳转到对话中的该节点</p>
+          <SessionTree
+            nodes={tree}
+            onNavigate={async (id) => {
+              await activatePreviewSession();
+              applySnapshot(await window.pi.navigateTree(id));
+              await loadTree(previewPath);
+              setView("chat");
+            }}
+            onFork={async (id) => {
+              await activatePreviewSession();
+              applySnapshot(await window.pi.fork(id));
+              await refreshModelsAndSessions();
+              setView("chat");
+            }}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}

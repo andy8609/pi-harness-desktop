@@ -17,11 +17,9 @@ pump = createEventPump(host);
 
 function bindWindowPause(window: BrowserWindow): void {
   const update = () => {
-    const paused = BrowserWindow.getAllWindows().every((item) => item.isDestroyed() || !item.isFocused() || item.isMinimized());
+    const paused = BrowserWindow.getAllWindows().every((item) => item.isDestroyed() || item.isMinimized());
     pump?.setPaused(paused);
   };
-  window.on("blur", update);
-  window.on("focus", update);
   window.on("minimize", update);
   window.on("restore", update);
   window.on("show", update);

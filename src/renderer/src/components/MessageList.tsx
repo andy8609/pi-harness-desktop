@@ -1,58 +1,26 @@
-import { CaretDown, CaretRight, TerminalWindow, Wrench } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { TerminalWindow } from "@phosphor-icons/react";
+import { useEffect, useMemo, useRef } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage } from "@shared/types";
 import { contentText, thinkingText, toolCalls } from "../lib/text";
+import { summarizeTurn, type TurnOperationSummary } from "../lib/tool-summary";
 import { useAppStore } from "../stores/app-store";
+import { ToolCallCard } from "./ToolCallCard";
 import { WorkingIndicator } from "./WorkingIndicator";
 
-function formatToolValue(value: unknown): string {
-  if (value == null) return "";
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
+function joinList(items: string[], limit = 8): string {
+  if (items.length <= limit) return items.join(", ");
+  return `${items.slice(0, limit).join(", ")} 等 ${items.length} 个`;
 }
 
-function ToolCard({
-  name,
-  args,
-  result,
-  isError,
-  running,
-}: {
-  name?: string;
-  args?: unknown;
-  result?: unknown;
-  isError?: boolean;
-  running?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const payload: Record<string, unknown> = {};
-  if (args !== undefined) payload.args = args;
-  if (result !== undefined) payload.result = result;
-  const body = Object.keys(payload).length > 0 ? formatToolValue(payload) : "";
+function TurnFileSummary({ summary }: { summary: TurnOperationSummary }) {
+  if (summary.reads.length === 0 && summary.writes.length === 0 && summary.commands.length === 0) return null;
   return (
-    <div className={`mt-2 rounded-lg border ${isError ? "border-[#e07a5f]" : "border-[#33392a]"} bg-[#10130d]`}>
-      <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#c4d45a]" onClick={() => setOpen((v) => !v)}>
-        {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
-        {running && result === undefined && (
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border border-[#c4d45a] border-t-transparent" />
-        )}
-        <Wrench size={12} />
-        <span>{name || "tool"}</span>
-        {result !== undefined ? (
-          <span className="text-[#9a937c]">{isError ? "失败" : "完成"}</span>
-        ) : running ? (
-          <span className="text-[#9a937c]">进行中</span>
-        ) : null}
-      </button>
-      {open && body && (
-        <pre className="max-h-72 overflow-auto border-t border-[#33392a] px-3 py-2 text-[11px] text-[#ece7d5]">{body}</pre>
-      )}
+    <div className="mt-2 space-y-0.5 rounded-lg border border-[#2a2f22] bg-[#161910] px-3 py-2 text-[11px] leading-5 text-[#9a937c]">
+      {summary.reads.length > 0 && <div>读取：{joinList(summary.reads)}</div>}
+      {summary.writes.length > 0 && <div>修改/写入：{joinList(summary.writes)}</div>}
+      {summary.commands.length > 0 && <div>运行：{joinList(summary.commands)}</div>}
     </div>
   );
 }
@@ -96,14 +64,7 @@ function MessageBody({
     );
   }
   if (message.role === "toolResult") {
-    return (
-      <ToolCard
-        name={message.toolName}
-        args={undefined}
-        result={message.details ?? message.content}
-        isError={message.isError}
-      />
-    );
+    return <ToolCallCard name={message.toolName} result={{ details: message.details, content: message.content }} isError={message.isError} />;
   }
   if (message.role === "bashExecution") {
     return (
@@ -122,6 +83,10 @@ function MessageBody({
   const tools = toolCalls(message.content);
   const resultById = new Map(toolResults.map((item) => [item.toolCallId, item]));
   const unmatched = toolResults.filter((item) => !item.toolCallId || !tools.some((tool) => tool.id === item.toolCallId));
+  const turn = summarizeTurn([
+    ...tools.map((tool) => ({ name: tool.name, arguments: tool.arguments })),
+    ...unmatched.map((item) => ({ name: item.toolName })),
+  ]);
   return (
     <div>
       {!hideThinking && thinking && (
@@ -138,24 +103,25 @@ function MessageBody({
           <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
         </div>
       )}
+      {(tools.length > 0 || unmatched.length > 0) && <TurnFileSummary summary={turn} />}
       {tools.map((tool) => {
         const result = tool.id ? resultById.get(tool.id) : undefined;
         return (
-          <ToolCard
+          <ToolCallCard
             key={tool.id ?? tool.name}
             name={tool.name}
             args={tool.arguments}
-            result={result ? (result.details ?? result.content) : undefined}
+            result={result ? { details: result.details, content: result.content } : undefined}
             isError={result?.isError}
             running={streaming}
           />
         );
       })}
       {unmatched.map((result, index) => (
-        <ToolCard
+        <ToolCallCard
           key={result.toolCallId ?? `tool-result-${index}`}
           name={result.toolName}
-          result={result.details ?? result.content}
+          result={{ details: result.details, content: result.content }}
           isError={result.isError}
         />
       ))}

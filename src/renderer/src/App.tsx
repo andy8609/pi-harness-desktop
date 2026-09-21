@@ -19,9 +19,9 @@ export function App() {
     void bootstrapApp();
     let text = "";
     let thinking = "";
-    let frame = 0;
+    let timer = 0;
     const flush = () => {
-      frame = 0;
+      timer = 0;
       const handle = useAppStore.getState().handleEvent;
       if (thinking) {
         const delta = thinking;
@@ -37,23 +37,23 @@ export function App() {
     const offEvent = window.pi.onEvent((event) => {
       if (event.type === "text_delta" && event.delta) {
         text += event.delta;
-        if (!frame) frame = requestAnimationFrame(flush);
+        if (!timer) timer = window.setTimeout(flush, 32);
         return;
       }
       if (event.type === "thinking_delta" && event.delta) {
         thinking += event.delta;
-        if (!frame) frame = requestAnimationFrame(flush);
+        if (!timer) timer = window.setTimeout(flush, 32);
         return;
       }
-      if (frame) {
-        cancelAnimationFrame(frame);
+      if (timer) {
+        window.clearTimeout(timer);
         flush();
       }
       useAppStore.getState().handleEvent(event);
     });
     const offDialog = window.pi.onDialog(setDialog);
     return () => {
-      if (frame) cancelAnimationFrame(frame);
+      if (timer) window.clearTimeout(timer);
       offEvent();
       offDialog();
     };

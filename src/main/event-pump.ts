@@ -2,8 +2,6 @@ import { BrowserWindow } from "electron";
 import type { StreamEvent } from "@shared/types";
 import type { AgentHost } from "./agent-host";
 
-const HIGH_FREQ = new Set(["text_delta", "thinking_delta", "bash_delta", "tool_update", "activity"]);
-
 export function createEventPump(host: AgentHost) {
   let paused = false;
   let pendingText = "";
@@ -20,6 +18,10 @@ export function createEventPump(host: AgentHost) {
   }
 
   function flushDeltas(): void {
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = undefined;
+    }
     if (pendingThinking) {
       const delta = pendingThinking;
       pendingThinking = "";
@@ -43,12 +45,12 @@ export function createEventPump(host: AgentHost) {
   function emit(event: StreamEvent): void {
     if (event.type === "text_delta") {
       pendingText += event.delta ?? "";
-      if (!paused) scheduleFlush(50);
+      scheduleFlush(paused ? 500 : 50);
       return;
     }
     if (event.type === "thinking_delta") {
       pendingThinking += event.delta ?? "";
-      if (!paused) scheduleFlush(50);
+      scheduleFlush(paused ? 500 : 50);
       return;
     }
     if (event.type === "activity") {
@@ -65,7 +67,7 @@ export function createEventPump(host: AgentHost) {
       broadcast(event);
       return;
     }
-    if (paused && HIGH_FREQ.has(event.type)) {
+    if (paused && (event.type === "bash_delta" || event.type === "tool_update")) {
       return;
     }
     if (paused) {
@@ -80,14 +82,8 @@ export function createEventPump(host: AgentHost) {
   function setPaused(value: boolean): void {
     if (paused === value) return;
     paused = value;
-    if (value) {
-      if (flushTimer) {
-        clearTimeout(flushTimer);
-        flushTimer = undefined;
-      }
-      return;
-    }
-    if (snapshotDirty || host.isBusy()) {
+    if (value) return;
+    if (snapshotDirty) {
       pendingText = "";
       pendingThinking = "";
       snapshotDirty = false;

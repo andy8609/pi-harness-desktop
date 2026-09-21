@@ -16,6 +16,9 @@ import type {
   ThinkingLevel,
   TreeNode,
 } from "@shared/types";
+import { activityLabel, polishActivity } from "../lib/tool-summary";
+
+let lastTool: { name?: string; args?: unknown } = {};
 
 interface AppState {
   view: AppView;
@@ -159,7 +162,7 @@ export const useAppStore = create<AppState>((set) => ({
         return {
           busy: true,
           activity: {
-            message: event.message,
+            message: polishActivity(event.message, lastTool.name, lastTool.args),
             startedAt: state.activity?.startedAt ?? Date.now(),
             elapsed: event.elapsed,
           },
@@ -194,9 +197,11 @@ export const useAppStore = create<AppState>((set) => ({
       return;
     }
     if (event.type === "tool_start") {
+      lastTool = { name: event.toolName, args: event.args };
+      const message = activityLabel(event.toolName, event.args);
       set((state) => ({
         busy: true,
-        activity: { message: `正在执行 ${event.toolName || "工具"}…`, startedAt: state.activity?.startedAt ?? Date.now() },
+        activity: { message, startedAt: state.activity?.startedAt ?? Date.now() },
         snapshot: state.snapshot
           ? { ...state.snapshot, isStreaming: true, messages: upsertToolCall(state.snapshot.messages, event.toolCallId, event.toolName, event.args) }
           : state.snapshot,
@@ -204,9 +209,14 @@ export const useAppStore = create<AppState>((set) => ({
       return;
     }
     if (event.type === "tool_update") {
+      lastTool = {
+        name: event.toolName || lastTool.name,
+        args: event.args !== undefined ? event.args : lastTool.args,
+      };
+      const message = activityLabel(lastTool.name, lastTool.args).replace(/…$/, "，请稍候…");
       set((state) => ({
         busy: true,
-        activity: { message: `正在执行 ${event.toolName || "工具"}，请稍候…`, startedAt: state.activity?.startedAt ?? Date.now() },
+        activity: { message, startedAt: state.activity?.startedAt ?? Date.now() },
       }));
       return;
     }
@@ -218,9 +228,10 @@ export const useAppStore = create<AppState>((set) => ({
       return;
     }
     if (event.type === "bash_delta") {
+      const message = lastTool.name === "bash" ? activityLabel("bash", lastTool.args) : "正在运行命令…";
       set((state) => ({
         busy: true,
-        activity: { message: "正在运行命令…", startedAt: state.activity?.startedAt ?? Date.now() },
+        activity: { message, startedAt: state.activity?.startedAt ?? Date.now() },
       }));
       return;
     }

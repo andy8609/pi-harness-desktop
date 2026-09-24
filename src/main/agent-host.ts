@@ -21,6 +21,17 @@ import type {
   TreeNode,
 } from "@shared/types";
 import {
+  applyCompletedPlanTasks,
+  createDefaultGpaState,
+  detectGpaConfirmation,
+  normalizeSequentialPlanTasks,
+  parseCanonicalGpaPlanTasks,
+  parseGpaCompletedTaskDeclarations,
+  parseGpaPlanTasks,
+  reconcileGpaPlanTasks,
+  type GpaState,
+} from "@shared/gpa";
+import {
   type CreateAgentSessionRuntimeFactory,
   type CreateAgentSessionRuntimeResult,
   type LoadExtensionsResult,
@@ -47,6 +58,17 @@ type AuthEvent =
   | { type: "auth_url"; url: string; instructions?: string }
   | { type: "device_code"; userCode: string; verificationUri: string };
 
+function contentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part) => (part as { type?: string }).type === "text")
+      .map((part) => String((part as { text?: unknown }).text ?? ""))
+      .join("");
+  }
+  return "";
+}
+
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: "settings", description: "打开设置", source: "builtin" },
   { name: "model", description: "选择模型", source: "builtin" },
@@ -69,6 +91,9 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 ];
 import { catalogUpdatedAt, fetchPiPackages } from "./catalog";
 import type { DialogBroker } from "./dialog-broker";
+import { createPermissionExtension } from "./extensions/permissions";
+import { PermissionStore } from "./permission-store";
+import { createGpaExtension } from "./extensions/gpa";
 import { searchProjectFiles } from "./file-search";
 import { readModelsFile, writeModelsFile } from "./models-file";
 import {
@@ -92,6 +117,8 @@ export class AgentHost {
   private activityLabel = "";
   private activityStartedAt = 0;
   private activityTimer: ReturnType<typeof setInterval> | undefined;
+  private gpaState: GpaState = createDefaultGpaState();
+  private readonly permissionStore = new PermissionStore();
 
   constructor(
     private readonly dialogs: DialogBroker,
@@ -217,6 +244,7 @@ export class AgentHost {
       projectTrusted: runtime.services.settingsManager.isProjectTrusted(),
       queue: this.queue,
       contextUsage: session.getContextUsage(),
+      gpa: this.gpaState,
     });
   }
 
@@ -406,10 +434,21 @@ export class AgentHost {
     }
     if (event.type === "agent_settled") {
       this.clearActivity();
+      this.updateGpaFromMessages();
       this.pushSnapshot();
       return;
     }
-    if (event.type === "message_end" || event.type === "session_info_changed" || event.type === "thinking_level_changed") {
+    if (event.type === "message_end") {
+      const message = event.message as { role?: string; content?: unknown } | undefined;
+      if (message?.role === "assistant") {
+        // Update GPA on every assistant message so ACT progress is live within
+        // a single agent turn (agent_settled only fires once per turn).
+        this.updateGpaFromMessages(contentToText(message.content));
+      }
+      this.pushSnapshot();
+      return;
+    }
+    if (event.type === "session_info_changed" || event.type === "thinking_level_changed") {
       this.pushSnapshot();
     }
   }
@@ -420,6 +459,12 @@ export class AgentHost {
       const services = await createAgentSessionServices({
         cwd,
         modelRuntime: this.requireModels(),
+        resourceLoaderOptions: {
+          extensionFactories: [
+            createPermissionExtension(this.dialogs, this.permissionStore),
+            createGpaExtension(() => this.gpaState, this.dialogs),
+          ],
+        },
         resourceLoaderReloadOptions: {
           resolveProjectTrust: async ({ extensionsResult }) => this.resolveTrust(cwd, extensionsResult),
         },
@@ -446,6 +491,8 @@ export class AgentHost {
     }
     this.cwd = cwd;
     this.queue = { steering: [], followUp: [] };
+    this.gpaState = createDefaultGpaState();
+    this.permissionStore.clearSession();
     const factory = this.createFactory();
     this.runtime = await createAgentSessionRuntime(factory, {
       cwd,
@@ -468,6 +515,7 @@ export class AgentHost {
   async prompt(payload: PromptPayload): Promise<void> {
     const session = this.requireSession();
     const text = payload.text;
+    this.maybeAdvanceGpaOnConfirmation(text);
     if (text.startsWith("!")) {
       const excluded = text.startsWith("!!");
       const command = excluded ? text.slice(2).trim() : text.slice(1).trim();
@@ -529,6 +577,8 @@ export class AgentHost {
   }
 
   async newSession(): Promise<SessionSnapshot> {
+    this.gpaState = createDefaultGpaState();
+    this.permissionStore.clearSession();
     const result = await this.requireRuntime().newSession();
     if (result.cancelled) throw new Error("新建会话被取消");
     await this.attachSession();
@@ -538,6 +588,8 @@ export class AgentHost {
   }
 
   async switchSession(path: string): Promise<SessionSnapshot> {
+    this.gpaState = createDefaultGpaState();
+    this.permissionStore.clearSession();
     const result = await this.requireRuntime().switchSession(path);
     if (result.cancelled) throw new Error("切换会话被取消");
     await this.attachSession();
@@ -584,6 +636,138 @@ export class AgentHost {
     const snapshot = this.snapshot();
     if (!snapshot) throw new Error("Clone 失败");
     return snapshot;
+  }
+
+  /**
+   * Edit a persisted user message and resend it: fork the session to just
+   * before that entry, then submit the new text as a fresh turn.
+   */
+  async editAndResend(entryId: string, payload: PromptPayload): Promise<void> {
+    const result = await this.requireRuntime().fork(entryId, { position: "before" });
+    if (result.cancelled) throw new Error("编辑被取消");
+    await this.attachSession();
+    await this.prompt(payload);
+  }
+
+  getGpaState(): GpaState {
+    return this.gpaState;
+  }
+
+  /** GPA is a single on/off workflow; enabling it always starts at GOAL. */
+  setGpaEnabled(enabled: boolean): GpaState {
+    this.gpaState = enabled
+      ? { ...createDefaultGpaState(), stage: "goal", updatedAt: new Date().toISOString() }
+      : createDefaultGpaState();
+    this.pushSnapshot();
+    return this.gpaState;
+  }
+
+  /**
+   * User confirmed the current stage. Advance the state machine and send a
+   * short instruction so the model continues in the next stage.
+   */
+  async confirmGpa(): Promise<void> {
+    const stage = this.gpaState.stage;
+    if (stage !== "goal" && stage !== "plan") return;
+    this.advanceGpaStage();
+    const message =
+      stage === "goal"
+        ? "已确认目标。请进入计划阶段：把目标拆解为原子任务，每个任务使用 `### T1: 标题` 格式并给出验收标准，最后请求确认。"
+        : "已确认计划。请进入执行阶段：按计划顺序逐项执行，每完成一项输出 `✅ 任务 T1 完成`，不要跳过任务。";
+    await this.prompt({ text: message });
+  }
+
+  resetGpa(): GpaState {
+    this.gpaState = createDefaultGpaState();
+    this.pushSnapshot();
+    return this.gpaState;
+  }
+
+  /** Move to the next stage without sending a message (used by text confirmation). */
+  private advanceGpaStage(): void {
+    const stage = this.gpaState.stage;
+    if (stage === "goal") {
+      this.gpaState = {
+        ...this.gpaState,
+        stage: "plan",
+        awaitingConfirmation: null,
+        updatedAt: new Date().toISOString(),
+      };
+    } else if (stage === "plan") {
+      const text = this.latestAssistantText();
+      const canonical = parseCanonicalGpaPlanTasks(text);
+      const tasks = canonical.length > 0 ? canonical : parseGpaPlanTasks(text);
+      this.gpaState = {
+        ...this.gpaState,
+        stage: "act",
+        planTasks: tasks.length > 0 ? tasks : this.gpaState.planTasks,
+        awaitingConfirmation: null,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    this.pushSnapshot();
+  }
+
+  /** A short confirmation message (e.g. "确认") advances the pending stage. */
+  private maybeAdvanceGpaOnConfirmation(text: string): void {
+    if (this.gpaState.stage === "off" || !this.gpaState.awaitingConfirmation) return;
+    if (!detectGpaConfirmation(text)) return;
+    this.advanceGpaStage();
+  }
+
+  listPermissionRules(): string[] {
+    return this.permissionStore.listAlways();
+  }
+
+  forgetPermissionRule(key: string): string[] {
+    this.permissionStore.forgetAlways(key);
+    return this.permissionStore.listAlways();
+  }
+
+  clearPermissionRules(): string[] {
+    this.permissionStore.clearAlways();
+    return this.permissionStore.listAlways();
+  }
+
+  private latestAssistantText(): string {
+    const session = this.runtime?.session;
+    if (!session) return "";
+    const messages = session.messages as Array<{ role?: string; content?: unknown }>;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.role !== "assistant") continue;
+      return contentToText(message.content);
+    }
+    return "";
+  }
+
+  /** Derive GPA plan/ACT progress from the latest assistant message. */
+  private updateGpaFromMessages(textOverride?: string): void {
+    if (this.gpaState.stage === "off") return;
+    const text = textOverride ?? this.latestAssistantText();
+    let next = this.gpaState;
+    if (text) {
+      if (next.stage === "plan") {
+        next = { ...next, planTasks: reconcileGpaPlanTasks(next.planTasks, text) };
+      }
+      if (next.stage === "act") {
+        const declarations = parseGpaCompletedTaskDeclarations(text, next.planTasks);
+        for (const declaration of declarations) {
+          next = applyCompletedPlanTasks(next, declaration.taskIds);
+        }
+        next = { ...next, planTasks: normalizeSequentialPlanTasks(next.planTasks) };
+      }
+    }
+    // GOAL / PLAN wait for an explicit user confirmation to advance.
+    if (next.stage === "goal" || next.stage === "plan") {
+      next = { ...next, awaitingConfirmation: next.stage };
+    }
+    // A fully completed ACT ends the one-shot GPA workflow.
+    if (next.stage === "act" && next.planTasks.length > 0 && next.planTasks.every((task) => task.done)) {
+      next = { ...next, stage: "off", awaitingConfirmation: null };
+      this.emit({ type: "toast", toastType: "info", message: "GPA 流程已完成，已自动关闭。" });
+    }
+    this.gpaState = { ...next, updatedAt: new Date().toISOString() };
   }
 
   async navigateTree(targetId: string, summarize = false): Promise<SessionSnapshot> {

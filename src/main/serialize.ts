@@ -1,4 +1,5 @@
 import { sessionEntryToContextMessages, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { GpaState } from "@shared/gpa";
 import type {
   ChatMessage,
   ResourceSummary,
@@ -67,7 +68,7 @@ export function collectDisplayMessages(session: {
         const item = message as { role?: string; display?: boolean };
         return item.role !== "custom" || item.display === true;
       })
-      .map(serializeMessage),
+      .map((message) => ({ ...serializeMessage(message), entryId: entry.id })),
   );
   const live = session.messages
     .filter((message) => {
@@ -185,6 +186,7 @@ export function buildSnapshot(input: {
   projectTrusted: boolean;
   queue?: { steering: string[]; followUp: string[] };
   contextUsage?: { tokens?: number | null; contextWindow?: number; percent?: number | null };
+  gpa?: GpaState;
 }): SessionSnapshot {
   const messages = input.messages;
   const usage = collectUsage(messages);
@@ -219,5 +221,6 @@ export function buildSnapshot(input: {
     diagnostics: input.diagnostics,
     modelFallbackMessage: input.modelFallbackMessage,
     projectTrusted: input.projectTrusted,
+    gpa: input.gpa,
   };
 }

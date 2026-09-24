@@ -7,11 +7,19 @@ export function SettingsPage() {
   const settings = useAppStore((state) => state.settings);
   const resources = snapshot?.resources;
   const [draft, setDraft] = useState<DesktopSettings>(settings);
+  const [rules, setRules] = useState<string[]>([]);
   const pushToast = useAppStore((state) => state.pushToast);
 
   useEffect(() => {
     setDraft(settings);
   }, [settings]);
+
+  useEffect(() => {
+    void window.pi
+      .listPermissionRules()
+      .then((list) => setRules(list as string[]))
+      .catch(() => undefined);
+  }, []);
 
   return (
     <section className="h-full overflow-auto px-6 py-5">
@@ -95,6 +103,44 @@ export function SettingsPage() {
             取消信任
           </button>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="mb-2 font-medium">已记住的权限规则</h2>
+        <p className="mb-2 text-xs text-[#9a937c]">
+          「始终允许」的高风险命令保存在 ~/.pi/agent/desktop-permissions.json。
+        </p>
+        {rules.length === 0 ? (
+          <div className="text-sm text-[#9a937c]">暂无</div>
+        ) : (
+          <ul className="max-w-2xl space-y-1">
+            {rules.map((rule) => (
+              <li
+                key={rule}
+                className="flex items-center justify-between gap-2 rounded border border-[#33392a] px-2 py-1 text-xs"
+              >
+                <span className="min-w-0 flex-1 truncate font-mono">{rule}</span>
+                <button
+                  className="shrink-0 text-[#e07a5f]"
+                  onClick={async () => {
+                    const next = (await window.pi.forgetPermissionRule(rule)) as string[];
+                    setRules(next);
+                  }}
+                >
+                  移除
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {rules.length > 0 && (
+          <button
+            className="mt-2 rounded border border-[#33392a] px-2 py-1 text-xs"
+            onClick={async () => setRules((await window.pi.clearPermissionRules()) as string[])}
+          >
+            全部清除
+          </button>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

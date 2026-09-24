@@ -1,12 +1,19 @@
 import { useState } from "react";
 import { useAppStore } from "../stores/app-store";
 
+/**
+ * Modal dialog host for blocking prompts that have no in-transcript home
+ * (confirm / input / secret / manual_code / select, e.g. provider login).
+ *
+ * Clarification (`questions`) and permission (`permission`) prompts are
+ * rendered inline in the chat instead — see `InlineDialogHost`.
+ */
 export function DialogHost() {
   const dialog = useAppStore((state) => state.dialog);
   const setDialog = useAppStore((state) => state.setDialog);
   const [value, setValue] = useState("");
 
-  if (!dialog) return null;
+  if (!dialog || dialog.kind === "questions" || dialog.kind === "permission") return null;
 
   const close = (cancelled = false, result?: string | boolean) => {
     window.pi.respondDialog({ id: dialog.id, cancelled, value: result });

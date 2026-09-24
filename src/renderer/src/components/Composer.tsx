@@ -1,7 +1,16 @@
 import { Paperclip, Stop, PaperPlaneTilt } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FileSearchResult, PromptImage, SlashCommand, StreamingBehavior } from "@shared/types";
+import type { GpaStage } from "@shared/gpa";
+import { PlanTimeline } from "./PlanTimeline";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+
+const GPA_STAGE_LABEL: Record<GpaStage, string> = {
+  off: "关闭",
+  goal: "目标 GOAL",
+  plan: "计划 PLAN",
+  act: "执行 ACT",
+};
 
 export function Composer() {
   const [text, setText] = useState("");
@@ -16,6 +25,8 @@ export function Composer() {
   const busy = useAppStore((state) => state.busy);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendingRef = useRef(false);
+  const gpa = snapshot?.gpa;
+  const gpaEnabled = Boolean(gpa && gpa.stage !== "off");
 
   const slashQuery = text.startsWith("/") ? text.slice(1).split(/\s/)[0] : "";
   const filteredCommands = useMemo(
@@ -142,6 +153,35 @@ export function Composer() {
 
   return (
     <div className="border-t border-[#33392a] bg-[#1a1d16] p-3">
+      {snapshot && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            title={gpaEnabled ? "关闭 GPA 工作流" : "开启 GPA（目标 → 计划 → 执行）工作流"}
+            className={`rounded-md border px-2 py-0.5 ${
+              gpaEnabled
+                ? "border-[#c4d45a] bg-[#c4d45a] text-[#16180f]"
+                : "border-[#33392a] text-[#9a937c] hover:border-[#c4d45a]"
+            }`}
+            onClick={() => void window.pi.setGpaEnabled(!gpaEnabled)}
+          >
+            GPA {gpaEnabled ? "已开启" : "关闭"}
+          </button>
+          {gpaEnabled && gpa && (
+            <span className="rounded bg-[#22261c] px-2 py-0.5 text-[#c4d45a]">{GPA_STAGE_LABEL[gpa.stage]}</span>
+          )}
+          {gpa?.awaitingConfirmation && (
+            <button
+              type="button"
+              className="rounded-md bg-[#c4d45a] px-2 py-0.5 text-[#16180f]"
+              onClick={() => void window.pi.confirmGpa()}
+            >
+              {gpa.awaitingConfirmation === "goal" ? "✓ 确认目标，进入计划" : "✓ 确认计划，开始执行"}
+            </button>
+          )}
+        </div>
+      )}
+      {snapshot?.gpa && <PlanTimeline state={snapshot.gpa} />}
       {(filteredCommands.length > 0 || files.length > 0) && (
         <div className="mb-2 max-h-40 overflow-auto rounded-lg border border-[#33392a] bg-[#12140f] p-2 text-sm">
           {filteredCommands.map((command) => (

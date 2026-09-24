@@ -37,6 +37,26 @@ export function CatalogCard({
             {item.kinds.includes("skill") && item.kinds.includes("extension") ? " · 扩展 / Skill" : ""}
           </div>
           <p className="mt-2 text-sm text-[#cfc8b0]">{item.description || "暂无描述"}</p>
+          {item.keywords.filter((keyword) => keyword.toLowerCase() !== "pi-package").length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {item.keywords
+                .filter((keyword) => keyword.toLowerCase() !== "pi-package")
+                .slice(0, 6)
+                .map((keyword) => (
+                  <span key={keyword} className="rounded bg-[#22261c] px-1.5 py-0.5 text-[10px] text-[#9a937c]">
+                    {keyword}
+                  </span>
+                ))}
+            </div>
+          )}
+          <a
+            href={item.npmUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-block text-xs text-[#c4d45a] hover:underline"
+          >
+            在 npm 查看 →
+          </a>
         </div>
         {installedSource ? (
           <button

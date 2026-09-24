@@ -15,10 +15,45 @@ import type {
   StreamEvent,
   ThinkingLevel,
   TreeNode,
+  WorkPanelState,
 } from "@shared/types";
 import { activityLabel, polishActivity } from "../lib/tool-summary";
 
 let lastTool: { name?: string; args?: unknown } = {};
+
+const WORK_PANEL_KEY = "pi-desktop:work-panel";
+const WORK_PANEL_MIN_WIDTH = 260;
+const WORK_PANEL_MAX_WIDTH = 720;
+
+function clampWorkPanelWidth(width: number): number {
+  if (!Number.isFinite(width)) return 360;
+  return Math.min(WORK_PANEL_MAX_WIDTH, Math.max(WORK_PANEL_MIN_WIDTH, Math.round(width)));
+}
+
+function loadWorkPanel(): WorkPanelState {
+  try {
+    const raw = localStorage.getItem(WORK_PANEL_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<WorkPanelState>;
+      return {
+        open: parsed.open ?? false,
+        tab: parsed.tab === "usage" ? "usage" : parsed.tab === "subagents" ? "subagents" : "files",
+        width: clampWorkPanelWidth(parsed.width ?? 360),
+      };
+    }
+  } catch {
+    // ignore malformed prefs
+  }
+  return { open: false, tab: "files", width: 360 };
+}
+
+function persistWorkPanel(state: WorkPanelState): void {
+  try {
+    localStorage.setItem(WORK_PANEL_KEY, JSON.stringify(state));
+  } catch {
+    // ignore storage failures
+  }
+}
 
 interface AppState {
   view: AppView;
@@ -39,6 +74,9 @@ interface AppState {
   activity?: ActivityStatus;
   pendingUser?: ChatMessage;
   error?: string;
+  workPanel: WorkPanelState;
+  setWorkPanel: (patch: Partial<WorkPanelState>) => void;
+  toggleWorkPanel: () => void;
   setView: (view: AppView) => void;
   applySnapshot: (snapshot?: SessionSnapshot | null) => void;
   handleEvent: (event: StreamEvent) => void;
@@ -128,6 +166,20 @@ export const useAppStore = create<AppState>((set) => ({
   streamingText: "",
   streamingThinking: "",
   busy: false,
+  workPanel: loadWorkPanel(),
+  setWorkPanel: (patch) =>
+    set((state) => {
+      const next = { ...state.workPanel, ...patch };
+      next.width = clampWorkPanelWidth(next.width);
+      persistWorkPanel(next);
+      return { workPanel: next };
+    }),
+  toggleWorkPanel: () =>
+    set((state) => {
+      const next = { ...state.workPanel, open: !state.workPanel.open };
+      persistWorkPanel(next);
+      return { workPanel: next };
+    }),
   setView: (view) => set({ view }),
   applySnapshot: (snapshot) =>
     set({

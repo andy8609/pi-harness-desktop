@@ -9,6 +9,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SkillsPage } from "./components/SkillsPage";
 import { StatusBar } from "./components/StatusBar";
 import { Toasts } from "./components/Toasts";
+import { WorkPanel } from "./components/WorkPanel";
 import { bootstrapApp, useAppStore } from "./stores/app-store";
 
 export function App() {
@@ -71,6 +72,7 @@ export function App() {
           {view === "models" && <ModelsPage />}
           {view === "settings" && <SettingsPage />}
         </main>
+        <WorkPanel />
       </div>
       <StatusBar />
       <DialogHost />

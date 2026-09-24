@@ -1,4 +1,4 @@
-import { ChatTeardropText, FolderOpen, GearSix, Lightning, PuzzlePiece, SquaresFour, TreeStructure } from "@phosphor-icons/react";
+import { ChatTeardropText, FolderOpen, GearSix, Lightning, PuzzlePiece, SidebarSimple, SquaresFour, TreeStructure } from "@phosphor-icons/react";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
 import { shortPath } from "../lib/text";
 import type { AppView } from "@shared/types";
@@ -18,6 +18,8 @@ export function Sidebar() {
   const snapshot = useAppStore((state) => state.snapshot);
   const applySnapshot = useAppStore((state) => state.applySnapshot);
   const pushToast = useAppStore((state) => state.pushToast);
+  const workPanelOpen = useAppStore((state) => state.workPanel.open);
+  const toggleWorkPanel = useAppStore((state) => state.toggleWorkPanel);
 
   return (
     <aside className="flex w-[232px] shrink-0 flex-col border-r border-[#33392a] bg-[#1a1d16]">
@@ -61,7 +63,14 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="mt-auto border-t border-[#33392a] px-4 py-3 text-xs text-[#9a937c]">
+      <button
+        className="mx-3 mb-2 mt-auto flex items-center gap-2 rounded-lg border border-[var(--line)] px-3 py-2 text-sm text-[var(--text)] hover:border-[var(--accent)]"
+        onClick={toggleWorkPanel}
+      >
+        <SidebarSimple size={16} />
+        {workPanelOpen ? "收起工作区" : "打开工作区"}
+      </button>
+      <div className="border-t border-[#33392a] px-4 py-3 text-xs text-[#9a937c]">
         <div>会话 {snapshot?.displayName || snapshot?.sessionName || snapshot?.sessionId.slice(0, 8) || "-"}</div>
         <div className="mt-1 truncate">{snapshot?.model ? `${snapshot.model.provider}/${snapshot.model.id}` : "未选择模型"}</div>
         <div className="mt-1">

@@ -1,3 +1,5 @@
+import type { GpaState } from "./gpa";
+
 export type AppView = "chat" | "sessions" | "extensions" | "skills" | "models" | "settings";
 
 export type CatalogKind = "extension" | "skill";
@@ -55,6 +57,8 @@ export interface ChatContentPart {
 export interface ChatMessage {
   role: string;
   content: string | ChatContentPart[];
+  /** Persisted session entry id, used for edit/fork/retry. Absent for live stream chunks. */
+  entryId?: string;
   timestamp?: number | string;
   customType?: string;
   toolCallId?: string;
@@ -120,6 +124,7 @@ export interface SessionSnapshot {
   diagnostics: Array<{ type: string; message: string }>;
   modelFallbackMessage?: string;
   projectTrusted: boolean;
+  gpa?: GpaState;
 }
 
 export interface SessionListItem {
@@ -177,6 +182,9 @@ export interface CustomModelConfig {
     cacheWrite?: number;
   };
   compat?: Record<string, unknown>;
+  /** Desktop UI extension fields (ignored by pi). */
+  thinkingLevels?: string[];
+  defaultThinkingLevel?: string | null;
 }
 
 export interface CustomProviderConfig {
@@ -187,6 +195,9 @@ export interface CustomProviderConfig {
   authHeader?: boolean;
   compat?: Record<string, unknown>;
   models?: CustomModelConfig[];
+  /** Desktop UI extension fields (ignored by pi). */
+  name?: string;
+  enabled?: boolean;
 }
 
 export interface ModelsFile {
@@ -226,7 +237,22 @@ export interface PromptPayload {
   streamingBehavior?: StreamingBehavior;
 }
 
-export type DialogKind = "select" | "confirm" | "input" | "secret" | "manual_code";
+export type DialogKind = "select" | "confirm" | "input" | "secret" | "manual_code" | "questions" | "permission";
+
+export interface DialogQuestion {
+  id: string;
+  label: string;
+  prompt: string;
+  options: Array<{ id: string; label: string; description?: string }>;
+  allowFreeText?: boolean;
+}
+
+export interface PermissionPrompt {
+  toolName: string;
+  risk: string;
+  detail: string;
+  options: Array<{ id: string; label: string }>;
+}
 
 export interface DialogRequest {
   id: string;
@@ -235,6 +261,8 @@ export interface DialogRequest {
   message?: string;
   placeholder?: string;
   options?: Array<{ id: string; label: string; description?: string }>;
+  questions?: DialogQuestion[];
+  permission?: PermissionPrompt;
 }
 
 export interface DialogResponse {
@@ -280,4 +308,27 @@ export interface StreamEvent {
 export interface FileSearchResult {
   path: string;
   relative: string;
+}
+
+export type WorkPanelTab = "files" | "usage" | "subagents";
+
+export interface FileEntry {
+  name: string;
+  path: string;
+  relative: string;
+  isDir: boolean;
+}
+
+export interface FileContent {
+  path: string;
+  relative: string;
+  content: string;
+  truncated: boolean;
+  binary: boolean;
+}
+
+export interface WorkPanelState {
+  open: boolean;
+  tab: WorkPanelTab;
+  width: number;
 }

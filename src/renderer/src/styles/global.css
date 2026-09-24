@@ -5,13 +5,17 @@
   --bg: #12140f;
   --bg-panel: #1a1d16;
   --bg-raised: #22261c;
+  --bg-code: #10130d;
   --line: #33392a;
+  --line-strong: #3b4132;
   --text: #ece7d5;
   --muted: #9a937c;
   --accent: #c4d45a;
   --accent-strong: #d7e56a;
+  --accent-soft: rgba(196, 212, 90, 0.16);
   --danger: #e07a5f;
   --ok: #8fbf7a;
+  --user-bubble: #262b1f;
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
 
@@ -41,14 +45,14 @@ select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3b4132;
+  background: var(--line-strong);
   border-radius: 999px;
 }
 
 .markdown-body pre {
   overflow-x: auto;
   padding: 0.75rem;
-  background: #10130d;
+  background: var(--bg-code);
   border: 1px solid var(--line);
   border-radius: 8px;
 }

@@ -2,6 +2,7 @@ import { BrowserWindow, app, dialog, ipcMain } from "electron";
 import type { DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, ThinkingLevel } from "@shared/types";
 import type { AgentHost } from "./agent-host";
 import type { DialogBroker } from "./dialog-broker";
+import { listDirectory, readFileText } from "./fs-panel";
 import { savePrefs } from "./prefs";
 import { listRemoteModels } from "./remote-models";
 
@@ -36,6 +37,9 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
     }),
   );
   ipcMain.handle("app:prompt", (_event, payload: PromptPayload) => wrap(() => host.prompt(payload)));
+  ipcMain.handle("app:editUserMessage", (_event, entryId: string, payload: PromptPayload) =>
+    wrap(() => host.editAndResend(entryId, payload)),
+  );
   ipcMain.handle("app:abort", () => wrap(() => host.abort()));
   ipcMain.handle("app:steer", (_event, text: string) => wrap(() => host.steer(text)));
   ipcMain.handle("app:followUp", (_event, text: string) => wrap(() => host.followUp(text)));
@@ -54,6 +58,13 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   ipcMain.handle("app:listModels", () => wrap(() => host.listModels()));
   ipcMain.handle("app:setModel", (_event, provider: string, id: string) => wrap(() => host.setModel(provider, id)));
   ipcMain.handle("app:setThinkingLevel", (_event, level: ThinkingLevel) => wrap(() => host.setThinkingLevel(level)));
+  ipcMain.handle("app:getGpaState", () => wrap(() => host.getGpaState()));
+  ipcMain.handle("app:setGpaEnabled", (_event, enabled: boolean) => wrap(() => host.setGpaEnabled(enabled)));
+  ipcMain.handle("app:confirmGpa", () => wrap(() => host.confirmGpa()));
+  ipcMain.handle("app:resetGpa", () => wrap(() => host.resetGpa()));
+  ipcMain.handle("app:listPermissionRules", () => wrap(() => host.listPermissionRules()));
+  ipcMain.handle("app:forgetPermissionRule", (_event, key: string) => wrap(() => host.forgetPermissionRule(key)));
+  ipcMain.handle("app:clearPermissionRules", () => wrap(() => host.clearPermissionRules()));
   ipcMain.handle("app:getModelsFile", () => wrap(() => host.getModelsFile()));
   ipcMain.handle("app:saveModelsFile", (_event, file: ModelsFile) => wrap(() => host.saveModelsFile(file)));
   ipcMain.handle("app:refreshModels", () => wrap(() => host.refreshModels()));
@@ -103,6 +114,8 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
     }),
   );
   ipcMain.handle("app:searchFiles", (_event, query: string) => wrap(() => host.searchFiles(query)));
+  ipcMain.handle("fs:listDir", (_event, relPath?: string) => wrap(() => listDirectory(host.getCwd(), relPath ?? "")));
+  ipcMain.handle("fs:readFile", (_event, relPath: string) => wrap(() => readFileText(host.getCwd(), relPath)));
   ipcMain.handle("app:getCommands", () => wrap(() => host.getCommands()));
   ipcMain.handle("app:getSessionInfo", () => wrap(() => host.getSessionInfo()));
   ipcMain.handle("app:listCatalog", () => wrap(() => host.listCatalog()));

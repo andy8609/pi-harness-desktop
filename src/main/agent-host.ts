@@ -69,6 +69,17 @@ function contentToText(content: unknown): string {
   return "";
 }
 
+/** 合法思考等级集合，用于校验 models.json 中配置的每模型默认思考等级。 */
+const VALID_THINKING_LEVELS = new Set<ThinkingLevel>([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: "settings", description: "打开设置", source: "builtin" },
   { name: "model", description: "选择模型", source: "builtin" },
@@ -836,6 +847,15 @@ export class AgentHost {
     const model = this.requireModels().getModel(provider, id);
     if (!model) throw new Error(`找不到模型 ${provider}/${id}`);
     await this.requireSession().setModel(model);
+    // 对话窗口切换模型后，自动应用 models.json 中为该模型配置的默认思考等级。
+    // 仅作用于当前会话，不覆盖全局默认思考等级设置。
+    const customModel = this.getModelsFile().file.providers?.[provider]?.models?.find(
+      (entry) => entry.id === id,
+    );
+    const level = customModel?.defaultThinkingLevel;
+    if (level && VALID_THINKING_LEVELS.has(level as ThinkingLevel)) {
+      this.requireSession().setThinkingLevel(level as ThinkingLevel);
+    }
     this.runtime?.services.settingsManager.setDefaultModelAndProvider(provider, id);
     this.pushSnapshot();
   }

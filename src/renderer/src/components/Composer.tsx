@@ -46,6 +46,19 @@ export function Composer() {
     return () => window.clearTimeout(handle);
   }, [atMatch?.[1], text]);
 
+  // 消费工作区右键"添加为引用"产生的引用队列：以 @路径 形式追加到输入框末尾。
+  const referenceQueue = useAppStore((state) => state.referenceQueue);
+  useEffect(() => {
+    if (referenceQueue.length === 0) return;
+    const insert = referenceQueue.map((path) => `@${path}`).join(" ");
+    setText((current) => {
+      const base = current === "" || current.endsWith(" ") ? current : `${current} `;
+      return `${base}${insert} `;
+    });
+    useAppStore.setState({ referenceQueue: [] });
+    textareaRef.current?.focus();
+  }, [referenceQueue]);
+
   const runBuiltin = async (command: SlashCommand, rest: string) => {
     if (command.source !== "builtin") return false;
     switch (command.name) {

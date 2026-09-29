@@ -16,6 +16,11 @@ export interface ModelRow {
   maxTokens?: number;
 }
 
+/** 根据文本/图片勾选状态生成 models.json 的 input 数组；两项都取消时为空数组（明确表达无输入能力）。 */
+function buildInputArray(hasText: boolean, hasImage: boolean): string[] {
+  return [...(hasText ? ["text"] : []), ...(hasImage ? ["image"] : [])];
+}
+
 /**
  * Two-pane model picker, mirroring PI-Desktop's `ModelSelectionPanes`:
  * the service's discovered list on the left, the chosen configurations on the
@@ -248,9 +253,11 @@ export function ModelSelectionPanes({
                     <button
                       type="button"
                       className="shrink-0 text-[10px] text-[var(--accent)]"
+                      title="高级设置"
+                      aria-label="高级设置"
                       onClick={() => setExpandedId(expanded ? null : binding.id)}
                     >
-                      {expanded ? <CaretDown size={11} /> : <CaretRight size={11} />} 高级
+                      {expanded ? <CaretDown size={11} /> : <CaretRight size={11} />}
                     </button>
                     <button
                       type="button"
@@ -278,6 +285,43 @@ export function ModelSelectionPanes({
                           }
                         />
                       </label>
+
+                      {/* 模型能力：文本与图片输入对应 models.json 的 input 字段；input 未设置时 pi 默认按文本处理，故文本默认勾选 */}
+                      <div className="text-[10px] text-[var(--muted)]">
+                        模型能力
+                        <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                          <label className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={binding.input?.includes("text") ?? true}
+                              onChange={(event) =>
+                                updateBinding(binding.id, {
+                                  input: buildInputArray(
+                                    event.target.checked,
+                                    binding.input?.includes("image") ?? false,
+                                  ),
+                                })
+                              }
+                            />
+                            文本
+                          </label>
+                          <label className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={binding.input?.includes("image") ?? false}
+                              onChange={(event) =>
+                                updateBinding(binding.id, {
+                                  input: buildInputArray(
+                                    binding.input?.includes("text") ?? true,
+                                    event.target.checked,
+                                  ),
+                                })
+                              }
+                            />
+                            图片输入
+                          </label>
+                        </div>
+                      </div>
 
                       <div className="text-[10px] text-[var(--muted)]">
                         上下文窗口

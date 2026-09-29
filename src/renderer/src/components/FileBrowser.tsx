@@ -1,33 +1,112 @@
-import { ArrowUp, File as FileIcon, Folder, FolderOpen, X } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { CaretDown, CaretRight, File as FileIcon, Folder, FolderOpen, X } from "@phosphor-icons/react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import type { FileContent, FileEntry } from "@shared/types";
 import { useAppStore } from "../stores/app-store";
 
-function crumbs(relDir: string): Array<{ label: string; path: string }> {
-  const parts = relDir.split("/").filter(Boolean);
-  const result: Array<{ label: string; path: string }> = [{ label: "根目录", path: "" }];
-  let acc = "";
-  for (const part of parts) {
-    acc = acc ? `${acc}/${part}` : part;
-    result.push({ label: part, path: acc });
-  }
-  return result;
+/**
+ * 树形单行：目录点击展开/折叠（首次展开懒加载子项），文件点击打开预览，
+ * 任意节点右键弹出"添加为引用"菜单。
+ */
+function TreeRow({
+  entry,
+  depth,
+  onOpenFile,
+  onContextMenu,
+}: {
+  entry: FileEntry;
+  depth: number;
+  onOpenFile: (entry: FileEntry) => void;
+  onContextMenu: (event: MouseEvent, entry: FileEntry) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [children, setChildren] = useState<FileEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // 首次展开时懒加载该目录的直接子项；加载失败保持未加载状态，可再次点击重试。
+  const toggle = async () => {
+    if (!entry.isDir) return;
+    if (!expanded && children === null) {
+      setLoading(true);
+      try {
+        setChildren((await window.pi.listDirectory(entry.relative)) as FileEntry[]);
+      } catch {
+        // 忽略单目录加载失败：保持折叠，用户可重试
+      } finally {
+        setLoading(false);
+      }
+    }
+    setExpanded((value) => !value);
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="flex w-full items-center gap-1 py-1 pr-2 text-left text-xs text-[var(--text)] hover:bg-[var(--bg-raised)]"
+        style={{ paddingLeft: 8 + depth * 14 }}
+        title={entry.relative}
+        onClick={() => (entry.isDir ? void toggle() : onOpenFile(entry))}
+        onContextMenu={(event) => onContextMenu(event, entry)}
+      >
+        {entry.isDir ? (
+          expanded ? (
+            <CaretDown size={11} className="shrink-0 text-[var(--muted)]" />
+          ) : (
+            <CaretRight size={11} className="shrink-0 text-[var(--muted)]" />
+          )
+        ) : (
+          <span className="w-[11px] shrink-0" />
+        )}
+        {entry.isDir ? (
+          expanded ? (
+            <FolderOpen size={13} className="shrink-0 text-[var(--accent)]" />
+          ) : (
+            <Folder size={13} className="shrink-0 text-[var(--accent)]" />
+          )
+        ) : (
+          <FileIcon size={13} className="shrink-0 text-[var(--muted)]" />
+        )}
+        <span className="truncate">{entry.name}</span>
+      </button>
+      {entry.isDir && expanded && (
+        <div>
+          {loading ? (
+            <div className="py-1 text-[10px] text-[var(--muted)]" style={{ paddingLeft: 22 + depth * 14 }}>
+              加载中…
+            </div>
+          ) : (
+            (children ?? []).map((child) => (
+              <TreeRow
+                key={child.path}
+                entry={child}
+                depth={depth + 1}
+                onOpenFile={onOpenFile}
+                onContextMenu={onContextMenu}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function FileBrowser() {
   const cwd = useAppStore((state) => state.snapshot?.cwd);
-  const [relDir, setRelDir] = useState("");
+  const pushReference = useAppStore((state) => state.pushReference);
+  const pushToast = useAppStore((state) => state.pushToast);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<FileContent | null>(null);
   const [error, setError] = useState<string>();
+  const [menu, setMenu] = useState<{ x: number; y: number; entry: FileEntry } | null>(null);
 
-  const load = useCallback(async (dir: string) => {
+  // 加载项目根目录列表（listDirectory 已按"目录在前、字母序"排序并跳过 node_modules 等）
+  const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
-      const list = (await window.pi.listDirectory(dir)) as FileEntry[];
-      setEntries(list);
+      setEntries((await window.pi.listDirectory("")) as FileEntry[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setEntries([]);
@@ -38,8 +117,9 @@ export function FileBrowser() {
 
   useEffect(() => {
     setSelected(null);
-    void load(relDir);
-  }, [relDir, load, cwd]);
+    setMenu(null);
+    void load();
+  }, [load, cwd]);
 
   const openFile = async (entry: FileEntry) => {
     setError(undefined);
@@ -51,38 +131,39 @@ export function FileBrowser() {
     }
   };
 
-  const trail = crumbs(relDir);
+  // 右键菜单打开期间：点击任意位置、按 Escape 或窗口失焦即关闭
+  useEffect(() => {
+    if (!menu) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      setMenu(null);
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", close);
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [menu]);
+
+  const openMenu = (event: MouseEvent, entry: FileEntry) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({ x: event.clientX, y: event.clientY, entry });
+  };
+
+  // 将右键选中的文件/文件夹作为 @引用 加入输入框（由 Composer 消费）
+  const addReference = () => {
+    if (!menu) return;
+    pushReference(menu.entry.relative);
+    pushToast("info", `已添加引用 @${menu.entry.relative}`);
+    setMenu(null);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-1 border-b border-[var(--line)] px-2 py-1.5 text-xs text-[var(--muted)]">
-        {relDir && (
-          <button
-            type="button"
-            title="返回上级"
-            aria-label="返回上级"
-            className="rounded p-1 hover:text-[var(--text)]"
-            onClick={() => setRelDir(relDir.split("/").slice(0, -1).join("/"))}
-          >
-            <ArrowUp size={13} />
-          </button>
-        )}
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1">
-          {trail.map((crumb, index) => (
-            <span key={crumb.path} className="flex items-center gap-1">
-              {index > 0 && <span>/</span>}
-              <button
-                type="button"
-                className="truncate hover:text-[var(--text)]"
-                onClick={() => setRelDir(crumb.path)}
-              >
-                {crumb.label}
-              </button>
-            </span>
-          ))}
-        </div>
-      </div>
-
       <div className="min-h-0 flex-1 overflow-auto">
         {error && <div className="px-3 py-2 text-xs text-[var(--danger)]">{error}</div>}
         {loading && <div className="px-3 py-2 text-xs text-[var(--muted)]">加载中…</div>}
@@ -90,21 +171,30 @@ export function FileBrowser() {
           <div className="px-3 py-2 text-xs text-[var(--muted)]">空目录</div>
         )}
         {entries.map((entry) => (
-          <button
-            key={entry.path}
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text)] hover:bg-[var(--bg-raised)]"
-            onClick={() => (entry.isDir ? setRelDir(entry.relative) : void openFile(entry))}
-          >
-            {entry.isDir ? (
-              <Folder size={13} className="shrink-0 text-[var(--accent)]" />
-            ) : (
-              <FileIcon size={13} className="shrink-0 text-[var(--muted)]" />
-            )}
-            <span className="truncate">{entry.name}</span>
-          </button>
+          <TreeRow key={entry.path} entry={entry} depth={0} onOpenFile={openFile} onContextMenu={openMenu} />
         ))}
       </div>
+
+      {menu && (
+        <div
+          className="fixed z-50 min-w-[140px] rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] py-1 shadow-xl"
+          style={{
+            left: Math.min(menu.x, window.innerWidth - 150),
+            top: Math.min(menu.y, window.innerHeight - 40),
+          }}
+          // 阻止 mousedown 冒泡，避免点击菜单项时菜单先被全局监听关闭
+          onMouseDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button
+            type="button"
+            className="block w-full px-3 py-1.5 text-left text-xs text-[var(--text)] hover:bg-[var(--bg-raised)]"
+            onClick={addReference}
+          >
+            添加为引用
+          </button>
+        </div>
+      )}
 
       {selected && (
         <div className="flex max-h-[60%] min-h-0 flex-col border-t border-[var(--line)]">

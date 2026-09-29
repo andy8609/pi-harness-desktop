@@ -75,6 +75,9 @@ interface AppState {
   pendingUser?: ChatMessage;
   error?: string;
   workPanel: WorkPanelState;
+  /** 待插入输入框的文件引用队列（工作区右键"添加为引用"），由 Composer 消费后清空。 */
+  referenceQueue: string[];
+  pushReference: (path: string) => void;
   setWorkPanel: (patch: Partial<WorkPanelState>) => void;
   toggleWorkPanel: () => void;
   setView: (view: AppView) => void;
@@ -167,6 +170,9 @@ export const useAppStore = create<AppState>((set) => ({
   streamingThinking: "",
   busy: false,
   workPanel: loadWorkPanel(),
+  referenceQueue: [],
+  pushReference: (path) =>
+    set((state) => ({ referenceQueue: [...state.referenceQueue, path] })),
   setWorkPanel: (patch) =>
     set((state) => {
       const next = { ...state.workPanel, ...patch };

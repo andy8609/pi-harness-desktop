@@ -116,7 +116,7 @@ export function configFromProvider(provider: UiProvider): CustomProviderConfig {
     id: model.id,
     ...(model.alias?.trim() ? { name: model.alias.trim() } : {}),
     ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-    ...(model.input && model.input.length > 0 ? { input: model.input } : {}),
+    ...(model.input !== undefined ? { input: model.input } : {}),
     ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
     ...(model.maxTokens ? { maxTokens: model.maxTokens } : {}),
     ...(model.thinkingLevels.length > 0 ? { thinkingLevels: model.thinkingLevels } : {}),

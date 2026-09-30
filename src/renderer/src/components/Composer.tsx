@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FileSearchResult, PromptImage, SlashCommand } from "@shared/types";
 import type { GpaStage } from "@shared/gpa";
 import { PlanTimeline } from "./PlanTimeline";
+import { SkillPicker } from "./SkillPicker";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
 
 const GPA_STAGE_LABEL: Record<GpaStage, string> = {
@@ -107,6 +108,15 @@ export function Composer() {
       default:
         return false;
     }
+  };
+
+  // 选中技能后把 /skill:<名称> 命令追加到输入框，用户可补充参数后发送
+  const insertSkill = (name: string) => {
+    setText((current) => {
+      const base = current === "" || current.endsWith(" ") ? current : `${current} `;
+      return `${base}/skill:${name} `;
+    });
+    textareaRef.current?.focus();
   };
 
   const submit = async () => {
@@ -298,6 +308,7 @@ export function Composer() {
               }}
             />
           </label>
+          <SkillPicker onSelect={insertSkill} />
         </div>
         <div className="flex gap-2">
           {busy && (

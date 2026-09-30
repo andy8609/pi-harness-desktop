@@ -1,5 +1,5 @@
 import { BrowserWindow, app, dialog, ipcMain } from "electron";
-import type { DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, ThinkingLevel } from "@shared/types";
+import type { DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, ThinkingLevel } from "@shared/types";
 import type { AgentHost } from "./agent-host";
 import type { DialogBroker } from "./dialog-broker";
 import { listDirectory, readFileText } from "./fs-panel";
@@ -43,6 +43,7 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   ipcMain.handle("app:abort", () => wrap(() => host.abort()));
   ipcMain.handle("app:steer", (_event, text: string) => wrap(() => host.steer(text)));
   ipcMain.handle("app:followUp", (_event, text: string) => wrap(() => host.followUp(text)));
+  ipcMain.handle("app:mutateQueue", (_event, action: QueueMutation) => wrap(() => host.mutateQueue(action)));
   ipcMain.handle("app:newSession", () => wrap(() => host.newSession()));
   ipcMain.handle("app:switchSession", (_event, path: string) => wrap(() => host.switchSession(path)));
   ipcMain.handle("app:listSessions", () => wrap(() => host.listSessions()));

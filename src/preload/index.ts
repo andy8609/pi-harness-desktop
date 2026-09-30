@@ -7,6 +7,7 @@ import type {
   InstalledResource,
   ModelsFile,
   PromptPayload,
+  QueueMutation,
   StreamEvent,
   ThinkingLevel,
 } from "@shared/types";
@@ -21,6 +22,7 @@ const api = {
   abort: () => ipcRenderer.invoke("app:abort"),
   steer: (text: string) => ipcRenderer.invoke("app:steer", text),
   followUp: (text: string) => ipcRenderer.invoke("app:followUp", text),
+  mutateQueue: (action: QueueMutation) => ipcRenderer.invoke("app:mutateQueue", action),
   newSession: () => ipcRenderer.invoke("app:newSession"),
   switchSession: (path: string) => ipcRenderer.invoke("app:switchSession", path),
   listSessions: () => ipcRenderer.invoke("app:listSessions"),

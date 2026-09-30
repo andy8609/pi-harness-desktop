@@ -1,6 +1,6 @@
-import { Paperclip, Stop, PaperPlaneTilt } from "@phosphor-icons/react";
+import { Paperclip, Stop, PaperPlaneTilt, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FileSearchResult, PromptImage, SlashCommand, StreamingBehavior } from "@shared/types";
+import type { FileSearchResult, PromptImage, SlashCommand } from "@shared/types";
 import type { GpaStage } from "@shared/gpa";
 import { PlanTimeline } from "./PlanTimeline";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
@@ -16,7 +16,7 @@ export function Composer() {
   const [text, setText] = useState("");
   const [images, setImages] = useState<PromptImage[]>([]);
   const [files, setFiles] = useState<FileSearchResult[]>([]);
-  const [behavior, setBehavior] = useState<StreamingBehavior>("steer");
+  const [preview, setPreview] = useState<PromptImage | null>(null);
   const snapshot = useAppStore((state) => state.snapshot);
   const commands = useAppStore((state) => state.commands);
   const applySnapshot = useAppStore((state) => state.applySnapshot);
@@ -109,7 +109,7 @@ export function Composer() {
     }
   };
 
-  const submit = async (mode?: StreamingBehavior) => {
+  const submit = async () => {
     const value = text.trim();
     if (!value && images.length === 0) return;
     if (sendingRef.current) return;
@@ -152,7 +152,8 @@ export function Composer() {
       await window.pi.prompt({
         text: value,
         images: pendingImages,
-        streamingBehavior: snapshot?.isStreaming ? mode ?? behavior : undefined,
+        // 流式对话中追加的消息默认进入 follow-up 队列（可在输入框上方的队列面板中转为 steer）
+        streamingBehavior: snapshot?.isStreaming ? "followUp" : undefined,
       });
     } catch (error) {
       setText(value);
@@ -220,9 +221,28 @@ export function Composer() {
           ))}
         </div>
       )}
-      {snapshot?.queue && (snapshot.queue.steering.length > 0 || snapshot.queue.followUp.length > 0) && (
-        <div className="mb-2 text-xs text-[#9a937c]">
-          队列 steer {snapshot.queue.steering.length} / follow-up {snapshot.queue.followUp.length}
+      {images.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {images.map((image, index) => (
+            <div key={index} className="group relative">
+              <img
+                src={`data:${image.mimeType};base64,${image.data}`}
+                alt={`附件 ${index + 1}`}
+                title="点击预览"
+                className="h-16 w-16 cursor-zoom-in rounded-lg border border-[#33392a] object-cover hover:border-[#c4d45a]"
+                onClick={() => setPreview(image)}
+              />
+              <button
+                type="button"
+                title="移除图片"
+                aria-label="移除图片"
+                className="absolute -top-1.5 -right-1.5 rounded-full border border-[#33392a] bg-[#12140f] p-0.5 text-[#9a937c] hover:border-[#e07a5f] hover:text-[#e07a5f]"
+                onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
       <textarea
@@ -249,7 +269,7 @@ export function Composer() {
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
-            void submit(event.altKey ? "followUp" : undefined);
+            void submit();
           }
           if (event.key === "Escape" && busy) {
             void window.pi.abort();
@@ -258,18 +278,6 @@ export function Composer() {
       />
       <div className="mt-2 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-[#9a937c]">
-          <label className="flex items-center gap-1">
-            排队
-            <select
-              className="rounded border border-[#33392a] bg-[#12140f] px-1 py-0.5"
-              value={behavior}
-              onChange={(event) => setBehavior(event.target.value as StreamingBehavior)}
-            >
-              <option value="steer">steer</option>
-              <option value="followUp">follow-up</option>
-            </select>
-          </label>
-          {images.length > 0 && <span>{images.length} 张图片</span>}
           <label className="flex cursor-pointer items-center gap-1">
             <Paperclip size={14} />
             图片
@@ -307,6 +315,31 @@ export function Composer() {
           </button>
         </div>
       </div>
+      {preview && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="图片预览"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8"
+          onClick={() => setPreview(null)}
+        >
+          <img
+            src={`data:${preview.mimeType};base64,${preview.data}`}
+            alt="图片预览"
+            className="max-h-full max-w-full rounded-lg object-contain"
+            onClick={(event) => event.stopPropagation()}
+          />
+          <button
+            type="button"
+            title="关闭预览"
+            aria-label="关闭预览"
+            className="absolute top-4 right-4 rounded-full border border-[#33392a] bg-[#1a1d16] p-1.5 text-[#9a937c] hover:text-[#ece7d5]"
+            onClick={() => setPreview(null)}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

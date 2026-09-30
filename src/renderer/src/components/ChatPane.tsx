@@ -2,6 +2,7 @@ import { ArrowsClockwise, Plus } from "@phosphor-icons/react";
 import { Composer } from "./Composer";
 import { InlineDialogHost } from "./InlineDialogHost";
 import { MessageList } from "./MessageList";
+import { MessageQueue } from "./MessageQueue";
 import { ModelPicker } from "./ModelPicker";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
 
@@ -62,6 +63,7 @@ export function ChatPane() {
       </div>
       <div className="px-6">
         <InlineDialogHost />
+        <MessageQueue />
       </div>
       <Composer />
     </section>

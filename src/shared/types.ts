@@ -237,6 +237,15 @@ export interface PromptPayload {
   streamingBehavior?: StreamingBehavior;
 }
 
+/** 待发送队列的单条修改操作（pi 不支持单条增删，实现为 clearQueue 后重建）。 */
+export interface QueueMutation {
+  type: "remove" | "update" | "toSteer";
+  /** 目标消息的文本（pi 队列镜像以文本标识消息）。 */
+  text: string;
+  /** update 时的新文本。 */
+  newText?: string;
+}
+
 export type DialogKind = "select" | "confirm" | "input" | "secret" | "manual_code" | "questions" | "permission";
 
 export interface DialogQuestion {

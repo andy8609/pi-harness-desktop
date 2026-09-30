@@ -10,8 +10,10 @@ import type {
   ModelOption,
   ModelsFile,
   PackageInventory,
+  PromptImage,
   PromptPayload,
   ProviderOption,
+  QueueMutation,
   ResourceSummary,
   SessionListItem,
   SessionSnapshot,
@@ -124,6 +126,15 @@ export class AgentHost {
   private runtime: AgentSessionRuntime | undefined;
   private unsubscribe: (() => void) | undefined;
   private queue = { steering: [] as string[], followUp: [] as string[] };
+  /**
+   * 队列消息的图片附件（文本 → 图片）：pi 的队列镜像只含文本，
+   * 编辑/删除队列消息需要清空重建，重建时用它恢复附件。
+   */
+  private queuedImages = new Map<string, PromptImage[]>();
+  /** 重建队列期间（clearQueue → 重新入队）暂停图片映射的清理，避免误删尚未重建的条目。 */
+  private restoringQueue = false;
+  /** 队列操作（删除/编辑/转 steer）的串行执行链，避免并发重建互相覆盖。 */
+  private queueMutationChain: Promise<void> = Promise.resolve();
   private cwd = homedir();
   private activityLabel = "";
   private activityStartedAt = 0;
@@ -419,6 +430,8 @@ export class AgentHost {
         steering: [...((event.steering as string[]) ?? [])],
         followUp: [...((event.followUp as string[]) ?? [])],
       };
+      // 消息被消费（离开队列）后清理其图片映射；重建期间跳过，避免误删尚未重建的条目
+      if (!this.restoringQueue) this.pruneQueuedImages();
       this.emit({ type: "queue_update", steering: this.queue.steering, followUp: this.queue.followUp });
       return;
     }
@@ -502,6 +515,7 @@ export class AgentHost {
     }
     this.cwd = cwd;
     this.queue = { steering: [], followUp: [] };
+    this.queuedImages.clear();
     this.gpaState = createDefaultGpaState();
     this.permissionStore.clearSession();
     const factory = this.createFactory();
@@ -543,9 +557,14 @@ export class AgentHost {
     }
 
     this.setActivity("正在提交消息…");
+    // 流式对话中追加的消息默认进入 follow-up 队列（等待当前回合结束后发送）
+    const streamingBehavior = session.isStreaming ? payload.streamingBehavior ?? "followUp" : undefined;
+    // 记录入队消息的图片附件，供编辑/删除重建队列时恢复
+    if (streamingBehavior && payload.images && payload.images.length > 0) {
+      this.queuedImages.set(text, payload.images);
+    }
     await new Promise<void>((resolve, reject) => {
       let accepted = false;
-      const streamingBehavior = session.isStreaming ? payload.streamingBehavior ?? "steer" : undefined;
       void session
         .prompt(text, {
           images: payload.images,
@@ -585,6 +604,75 @@ export class AgentHost {
 
   async followUp(text: string): Promise<void> {
     await this.requireSession().followUp(text);
+  }
+
+  /**
+   * 修改待发送队列：删除单条、编辑文本、把 follow-up 转为 steer。
+   * pi 不支持单条增删，实现为 clearQueue 后按剩余顺序重建（图片附件从映射恢复）。
+   * 队列操作串行执行：并发的 clearQueue + 重建会互相覆盖导致消息丢失。
+   */
+  async mutateQueue(action: QueueMutation): Promise<void> {
+    const run = this.queueMutationChain.then(() => this.applyQueueMutation(action));
+    this.queueMutationChain = run.catch(() => undefined);
+    return run;
+  }
+
+  private async applyQueueMutation(action: QueueMutation): Promise<void> {
+    const session = this.requireSession();
+    this.restoringQueue = true;
+    try {
+      const current = session.clearQueue();
+      const steering = [...current.steering];
+      const followUp = [...current.followUp];
+
+      if (action.type === "remove") {
+        const index = steering.indexOf(action.text);
+        if (index !== -1) steering.splice(index, 1);
+        else {
+          const fallback = followUp.indexOf(action.text);
+          if (fallback !== -1) followUp.splice(fallback, 1);
+        }
+      } else if (action.type === "update") {
+        const newText = (action.newText ?? "").trim();
+        if (!newText) throw new Error("队列消息内容不能为空");
+        const index = steering.indexOf(action.text);
+        if (index !== -1) steering[index] = newText;
+        else {
+          const fallback = followUp.indexOf(action.text);
+          if (fallback !== -1) followUp[fallback] = newText;
+        }
+        // 图片映射随文本转移
+        const images = this.queuedImages.get(action.text);
+        if (images) {
+          this.queuedImages.delete(action.text);
+          this.queuedImages.set(newText, images);
+        }
+      } else if (action.type === "toSteer") {
+        const index = followUp.indexOf(action.text);
+        if (index !== -1) {
+          followUp.splice(index, 1);
+          steering.push(action.text);
+        }
+      }
+
+      for (const text of steering) {
+        await session.steer(text, this.queuedImages.get(text));
+      }
+      for (const text of followUp) {
+        await session.followUp(text, this.queuedImages.get(text));
+      }
+    } finally {
+      this.restoringQueue = false;
+      this.pruneQueuedImages();
+    }
+  }
+
+  /** 清理已不在队列中的消息的图片映射，避免陈旧数据累积。 */
+  private pruneQueuedImages(): void {
+    const pending = new Set([...this.queue.steering, ...this.queue.followUp]);
+    for (const key of [...this.queuedImages.keys()]) {
+      if (!pending.has(key)) this.queuedImages.delete(key);
+    }
   }
 
   async newSession(): Promise<SessionSnapshot> {

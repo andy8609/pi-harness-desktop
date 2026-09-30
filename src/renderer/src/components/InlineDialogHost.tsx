@@ -63,9 +63,10 @@ export function InlineDialogHost() {
 
   const questions = dialog.questions ?? [];
   return (
-    <div className="mx-auto mb-2 max-w-5xl rounded-xl border border-[var(--accent)] bg-[var(--bg-panel)] p-3">
-      <div className="mb-2 text-sm font-medium text-[var(--text)]">{dialog.title}</div>
-      <div className="space-y-3">
+    <div className="mx-auto mb-2 flex max-h-[60vh] max-w-5xl flex-col rounded-xl border border-[var(--accent)] bg-[var(--bg-panel)] p-3">
+      <div className="mb-2 shrink-0 text-sm font-medium text-[var(--text)]">{dialog.title}</div>
+      {/* 问题列表内部滚动：内容过多时保持标题与操作按钮可见 */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {questions.map((question) => (
           <div key={question.id}>
             <div className="text-sm font-medium text-[var(--text)]">{question.label}</div>
@@ -102,7 +103,7 @@ export function InlineDialogHost() {
           </div>
         ))}
       </div>
-      <div className="mt-3 flex justify-end gap-2">
+      <div className="mt-3 flex shrink-0 justify-end gap-2">
         <button
           type="button"
           className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm"

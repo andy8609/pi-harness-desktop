@@ -1,4 +1,4 @@
-import { Paperclip, Stop, PaperPlaneTilt, X } from "@phosphor-icons/react";
+import { FileText, Paperclip, Stop, PaperPlaneTilt, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FileSearchResult, PromptImage, SlashCommand } from "@shared/types";
 import type { GpaStage } from "@shared/gpa";
@@ -13,11 +13,22 @@ const GPA_STAGE_LABEL: Record<GpaStage, string> = {
   act: "执行 ACT",
 };
 
+/** 文本类文档的大小上限（超过则拒绝，避免上下文被大文件占满） */
+const MAX_DOC_BYTES = 2 * 1024 * 1024;
+
+/** 待发送的文本类文档附件（内容随消息内联，格式与 pi CLI 的 @文件 一致） */
+interface DocAttachment {
+  name: string;
+  content: string;
+}
+
 export function Composer() {
   const [text, setText] = useState("");
   const [images, setImages] = useState<PromptImage[]>([]);
+  const [docs, setDocs] = useState<DocAttachment[]>([]);
   const [files, setFiles] = useState<FileSearchResult[]>([]);
   const [preview, setPreview] = useState<PromptImage | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<DocAttachment | null>(null);
   const snapshot = useAppStore((state) => state.snapshot);
   const commands = useAppStore((state) => state.commands);
   const applySnapshot = useAppStore((state) => state.applySnapshot);
@@ -119,11 +130,46 @@ export function Composer() {
     textareaRef.current?.focus();
   };
 
+  // 选择文件后分流：图片转为 base64 附件；文本类文档读取内容，发送时随消息内联
+  const addAttachment = async (file: File) => {
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result ?? "");
+        const data = result.split(",")[1] ?? "";
+        setImages((current) => [...current, { type: "image", data, mimeType: file.type }]);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+    if (file.size > MAX_DOC_BYTES) {
+      pushToast("error", `${file.name} 超过 2MB，暂不支持`);
+      return;
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      // 前 8KB 含空字节视为二进制（PDF/Office 等），暂不支持
+      if (new Uint8Array(buffer.slice(0, 8192)).includes(0)) {
+        pushToast("error", `${file.name} 不是文本文件（PDF/Office 等二进制文档暂不支持）`);
+        return;
+      }
+      const content = new TextDecoder("utf-8").decode(buffer).replace(/^\uFEFF/, "");
+      if (!content.trim()) {
+        pushToast("info", `${file.name} 是空文件，已跳过`);
+        return;
+      }
+      setDocs((current) => [...current, { name: file.name, content }]);
+    } catch (error) {
+      pushToast("error", `${file.name} 读取失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const submit = async () => {
     const value = text.trim();
-    if (!value && images.length === 0) return;
+    if (!value && images.length === 0 && docs.length === 0) return;
     if (sendingRef.current) return;
     const pendingImages = images;
+    const pendingDocs = docs;
     sendingRef.current = true;
     try {
       if (value.startsWith("/")) {
@@ -136,6 +182,7 @@ export function Composer() {
       }
       setText("");
       setImages([]);
+      setDocs([]);
       const current = useAppStore.getState().snapshot;
       if (current && value) {
         const pending = { role: "user" as const, content: value, timestamp: Date.now() };
@@ -159,8 +206,13 @@ export function Composer() {
           activity: { message: "正在提交消息…", startedAt: Date.now() },
         });
       }
+      // 文本类文档按 pi 的 @文件 格式内联到消息末尾：<file name="文件名">内容</file>
+      const fileBlocks = pendingDocs
+        .map((doc) => `<file name="${doc.name}">\n${doc.content}\n</file>`)
+        .join("\n");
+      const promptText = [value, fileBlocks].filter(Boolean).join("\n\n");
       await window.pi.prompt({
-        text: value,
+        text: promptText,
         images: pendingImages,
         // 流式对话中追加的消息默认进入 follow-up 队列（可在输入框上方的队列面板中转为 steer）
         streamingBehavior: snapshot?.isStreaming ? "followUp" : undefined,
@@ -168,6 +220,7 @@ export function Composer() {
     } catch (error) {
       setText(value);
       setImages(pendingImages);
+      setDocs(pendingDocs);
       useAppStore.setState({ busy: false, activity: undefined, pendingUser: undefined });
       pushToast("error", error instanceof Error ? error.message : String(error));
     } finally {
@@ -231,7 +284,7 @@ export function Composer() {
           ))}
         </div>
       )}
-      {images.length > 0 && (
+      {(images.length > 0 || docs.length > 0) && (
         <div className="mb-2 flex flex-wrap gap-2">
           {images.map((image, index) => (
             <div key={index} className="group relative">
@@ -248,6 +301,28 @@ export function Composer() {
                 aria-label="移除图片"
                 className="absolute -top-1.5 -right-1.5 rounded-full border border-[#33392a] bg-[#12140f] p-0.5 text-[#9a937c] hover:border-[#e07a5f] hover:text-[#e07a5f]"
                 onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+          {docs.map((doc, index) => (
+            <div key={`doc-${index}`} className="group relative">
+              <button
+                type="button"
+                title={`${doc.name}（点击预览内容）`}
+                className="flex h-16 w-16 cursor-zoom-in flex-col items-center justify-center gap-1 rounded-lg border border-[#33392a] bg-[#12140f] px-1 hover:border-[#c4d45a]"
+                onClick={() => setPreviewDoc(doc)}
+              >
+                <FileText size={18} className="shrink-0 text-[#9a937c]" />
+                <span className="w-full truncate text-center text-[9px] text-[#9a937c]">{doc.name}</span>
+              </button>
+              <button
+                type="button"
+                title="移除文档"
+                aria-label="移除文档"
+                className="absolute -top-1.5 -right-1.5 rounded-full border border-[#33392a] bg-[#12140f] p-0.5 text-[#9a937c] hover:border-[#e07a5f] hover:text-[#e07a5f]"
+                onClick={() => setDocs((current) => current.filter((_, i) => i !== index))}
               >
                 <X size={11} />
               </button>
@@ -288,23 +363,21 @@ export function Composer() {
       />
       <div className="mt-2 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-[#9a937c]">
-          <label className="flex cursor-pointer items-center gap-1">
+          <label
+            className="flex cursor-pointer items-center gap-1"
+            title="上传图片或文本类文档（.md/.txt/.json 等）"
+          >
             <Paperclip size={14} />
-            图片
+            上传
             <input
               type="file"
-              accept="image/*"
+              multiple
               className="hidden"
               onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const result = String(reader.result ?? "");
-                  const data = result.split(",")[1] ?? "";
-                  setImages((current) => [...current, { type: "image", data, mimeType: file.type }]);
-                };
-                reader.readAsDataURL(file);
+                const selected = Array.from(event.target.files ?? []);
+                // 清空值以允许再次选择同一文件
+                event.target.value = "";
+                for (const file of selected) void addAttachment(file);
               }}
             />
           </label>
@@ -349,6 +422,39 @@ export function Composer() {
           >
             <X size={16} />
           </button>
+        </div>
+      )}
+      {previewDoc && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="文档预览"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div
+            className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-[#33392a] bg-[#1a1d16]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 border-b border-[#33392a] px-3 py-2 text-xs text-[#ece7d5]">
+              <FileText size={14} className="shrink-0 text-[#9a937c]" />
+              <span className="min-w-0 flex-1 truncate" title={previewDoc.name}>
+                {previewDoc.name}
+              </span>
+              <button
+                type="button"
+                title="关闭预览"
+                aria-label="关闭预览"
+                className="rounded p-0.5 text-[#9a937c] hover:text-[#ece7d5]"
+                onClick={() => setPreviewDoc(null)}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-3 py-2 text-[11px] leading-5 text-[#ece7d5]">
+              {previewDoc.content}
+            </pre>
+          </div>
         </div>
       )}
     </div>

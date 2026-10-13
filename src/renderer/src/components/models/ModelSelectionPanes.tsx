@@ -399,13 +399,22 @@ export function ModelSelectionPanes({
                                     ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text)]"
                                     : "border-[var(--line)] hover:border-[var(--accent)]"
                                 }`}
-                                onClick={() =>
+                                onClick={() => {
+                                  const thinkingLevels = on
+                                    ? binding.thinkingLevels.filter((item) => item !== level)
+                                    : [...binding.thinkingLevels, level];
+                                  const defaultThinkingLevel =
+                                    binding.defaultThinkingLevel && thinkingLevels.includes(binding.defaultThinkingLevel)
+                                      ? binding.defaultThinkingLevel
+                                      : thinkingLevels.length > 1
+                                        ? (thinkingLevels.find((item) => item !== "off") ?? thinkingLevels[0] ?? null)
+                                        : null;
                                   updateBinding(binding.id, {
-                                    thinkingLevels: on
-                                      ? binding.thinkingLevels.filter((item) => item !== level)
-                                      : [...binding.thinkingLevels, level],
-                                  })
-                                }
+                                    thinkingLevels,
+                                    reasoning: thinkingLevels.length > 0,
+                                    defaultThinkingLevel,
+                                  });
+                                }}
                               >
                                 {level}
                               </button>

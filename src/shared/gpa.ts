@@ -192,6 +192,18 @@ export function reconcileGpaPlanTasks(current: PlanTask[], planBody: string): Pl
   return parsed.map((task) => ({ ...task, done: completed.has(`${task.id}\u0000${task.title}`) }));
 }
 
+/**
+ * Live PLAN parse: replace the task list as headings stream in, refining titles
+ * and growing the list, while preserving any already-completed IDs.
+ */
+export function liveReconcileGpaPlanTasks(current: PlanTask[], planBody: string): PlanTask[] {
+  const canonical = parseCanonicalGpaPlanTasks(planBody);
+  const parsed = canonical.length > 0 ? canonical : parseGpaPlanTasks(planBody);
+  if (parsed.length === 0) return current;
+  const completed = new Set(current.filter((task) => task.done).map((task) => task.id.toUpperCase()));
+  return parsed.map((task) => ({ ...task, done: completed.has(task.id.toUpperCase()) }));
+}
+
 export function normalizeSequentialPlanTasks(tasks: PlanTask[]): PlanTask[] {
   let encounteredPending = false;
   let changed = false;

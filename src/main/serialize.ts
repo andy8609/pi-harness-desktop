@@ -190,6 +190,7 @@ export function buildSnapshot(input: {
   isCompacting: boolean;
   model?: { provider?: string; id?: string; name?: string; contextWindow?: number; maxTokens?: number; reasoning?: boolean };
   thinkingLevel: unknown;
+  availableThinkingLevels?: ThinkingLevel[];
   resources: ResourceSummary;
   diagnostics: Array<{ type: string; message: string }>;
   modelFallbackMessage?: string;
@@ -226,6 +227,10 @@ export function buildSnapshot(input: {
         }
       : undefined,
     thinkingLevel: asThinkingLevel(input.thinkingLevel),
+    availableThinkingLevels:
+      input.availableThinkingLevels && input.availableThinkingLevels.length > 0
+        ? input.availableThinkingLevels
+        : ["off"],
     usage,
     queue: input.queue ?? { steering: [], followUp: [] },
     resources: input.resources,

@@ -1,9 +1,68 @@
-import type { PiApi } from "./index";
-
-declare global {
-  interface Window {
-    pi: PiApi;
-  }
-}
-
+import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThinkingLevel } from "@shared/types";
+declare const api: {
+    getState: () => Promise<any>;
+    openDirectory: () => Promise<any>;
+    openProject: (cwd: string) => Promise<any>;
+    prompt: (payload: PromptPayload) => Promise<any>;
+    editUserMessage: (entryId: string, payload: PromptPayload) => Promise<any>;
+    abort: () => Promise<any>;
+    steer: (text: string) => Promise<any>;
+    followUp: (text: string) => Promise<any>;
+    mutateQueue: (action: QueueMutation) => Promise<any>;
+    newSession: () => Promise<any>;
+    switchSession: (path: string) => Promise<any>;
+    listSessions: () => Promise<any>;
+    nameSession: (name: string) => Promise<any>;
+    fork: (entryId: string) => Promise<any>;
+    clone: () => Promise<any>;
+    navigateTree: (targetId: string, summarize?: boolean) => Promise<any>;
+    getTree: (path?: string) => Promise<any>;
+    compact: (instructions?: string) => Promise<any>;
+    reload: () => Promise<any>;
+    listModels: () => Promise<any>;
+    setModel: (provider: string, id: string) => Promise<any>;
+    setThinkingLevel: (level: ThinkingLevel) => Promise<any>;
+    getGpaState: () => Promise<any>;
+    setGpaEnabled: (enabled: boolean) => Promise<any>;
+    confirmGpa: () => Promise<any>;
+    resumeGpaPlan: () => Promise<any>;
+    abandonGpaPlan: () => Promise<any>;
+    peekGpaPlan: () => Promise<any>;
+    resetGpa: () => Promise<any>;
+    listPermissionRules: () => Promise<any>;
+    forgetPermissionRule: (key: string) => Promise<any>;
+    clearPermissionRules: () => Promise<any>;
+    getModelsFile: () => Promise<any>;
+    saveModelsFile: (file: ModelsFile) => Promise<any>;
+    refreshModels: () => Promise<any>;
+    login: (providerId: string, type: "api_key" | "oauth") => Promise<any>;
+    logout: (providerId: string) => Promise<any>;
+    setApiKey: (providerId: string, apiKey: string) => Promise<any>;
+    getSettings: () => Promise<any>;
+    updateSettings: (patch: DesktopSettings) => Promise<any>;
+    trustProject: (trusted: boolean, includeParent?: boolean) => Promise<any>;
+    exportHtml: () => Promise<any>;
+    exportJsonl: () => Promise<any>;
+    importJsonl: () => Promise<any>;
+    searchFiles: (query: string) => Promise<any>;
+    listDirectory: (relPath?: string) => Promise<any>;
+    readFile: (relPath: string) => Promise<any>;
+    getCommands: () => Promise<any>;
+    getSessionInfo: () => Promise<any>;
+    listCatalog: () => Promise<any>;
+    refreshCatalog: () => Promise<any>;
+    listRemoteModels: (baseUrl: string, apiKey?: string) => Promise<any>;
+    listPackages: () => Promise<any>;
+    installPackage: (name: string) => Promise<any>;
+    removePackage: (source: string) => Promise<any>;
+    toggleResource: (item: InstalledResource, enabled: boolean) => Promise<any>;
+    importSkillFile: () => Promise<any>;
+    importSkillDir: () => Promise<any>;
+    quit: () => Promise<any>;
+    respondDialog: (response: DialogResponse) => void;
+    onEvent: (listener: (event: StreamEvent) => void) => () => Electron.IpcRenderer;
+    onDialog: (listener: (request: DialogRequest) => void) => () => Electron.IpcRenderer;
+    onCatalog: (listener: (packages: CatalogPackage[]) => void) => () => Electron.IpcRenderer;
+};
+export type PiApi = typeof api;
 export {};

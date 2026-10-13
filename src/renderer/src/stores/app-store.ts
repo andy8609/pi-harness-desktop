@@ -77,7 +77,10 @@ interface AppState {
   workPanel: WorkPanelState;
   /** 待插入输入框的文件引用队列（工作区右键"添加为引用"），由 Composer 消费后清空。 */
   referenceQueue: string[];
+  /** 按会话保存未发送的输入，切换侧栏菜单后回来不会丢。 */
+  composerDrafts: Record<string, string>;
   pushReference: (path: string) => void;
+  setComposerDraft: (sessionId: string, text: string) => void;
   setWorkPanel: (patch: Partial<WorkPanelState>) => void;
   toggleWorkPanel: () => void;
   setView: (view: AppView) => void;
@@ -171,8 +174,18 @@ export const useAppStore = create<AppState>((set) => ({
   busy: false,
   workPanel: loadWorkPanel(),
   referenceQueue: [],
+  composerDrafts: {},
   pushReference: (path) =>
     set((state) => ({ referenceQueue: [...state.referenceQueue, path] })),
+  setComposerDraft: (sessionId, text) =>
+    set((state) => {
+      if (!sessionId) return state;
+      if (text === "") {
+        const { [sessionId]: _removed, ...rest } = state.composerDrafts;
+        return { composerDrafts: rest };
+      }
+      return { composerDrafts: { ...state.composerDrafts, [sessionId]: text } };
+    }),
   setWorkPanel: (patch) =>
     set((state) => {
       const next = { ...state.workPanel, ...patch };
@@ -290,6 +303,12 @@ export const useAppStore = create<AppState>((set) => ({
       set((state) => ({
         busy: true,
         activity: { message, startedAt: state.activity?.startedAt ?? Date.now() },
+      }));
+      return;
+    }
+    if (event.type === "gpa" && event.gpa) {
+      set((state) => ({
+        snapshot: state.snapshot ? { ...state.snapshot, gpa: event.gpa } : state.snapshot,
       }));
       return;
     }

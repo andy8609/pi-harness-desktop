@@ -119,6 +119,7 @@ export interface SessionSnapshot {
   isCompacting: boolean;
   model?: ModelRef;
   thinkingLevel: ThinkingLevel;
+  availableThinkingLevels: ThinkingLevel[];
   usage: SessionUsage;
   queue: { steering: string[]; followUp: string[] };
   resources: ResourceSummary;
@@ -157,6 +158,8 @@ export interface ModelOption {
   maxTokens?: number;
   reasoning?: boolean;
   available: boolean;
+  thinkingLevels?: ThinkingLevel[];
+  defaultThinkingLevel?: ThinkingLevel | null;
 }
 
 export interface ProviderOption {
@@ -300,7 +303,8 @@ export interface StreamEvent {
     | "compaction"
     | "activity"
     | "toast"
-    | "snapshot";
+    | "snapshot"
+    | "gpa";
   delta?: string;
   toolCallId?: string;
   toolName?: string;
@@ -314,6 +318,7 @@ export interface StreamEvent {
   message?: string;
   elapsed?: number;
   snapshot?: SessionSnapshot;
+  gpa?: GpaState;
 }
 
 export interface FileSearchResult {

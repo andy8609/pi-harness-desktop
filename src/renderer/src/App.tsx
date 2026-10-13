@@ -64,12 +64,16 @@ export function App() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="min-w-0 flex-1">
-          {view === "chat" && <ChatPane />}
+        <main className="relative min-w-0 flex-1">
+          <div className={view === "chat" ? "h-full" : "hidden h-full"}>
+            <ChatPane />
+          </div>
           {view === "sessions" && <SessionsPage />}
           {view === "extensions" && <ExtensionsPage />}
           {view === "skills" && <SkillsPage />}
-          {view === "models" && <ModelsPage />}
+          <div className={view === "models" ? "h-full" : "hidden h-full"}>
+            <ModelsPage />
+          </div>
           {view === "settings" && <SettingsPage />}
         </main>
         <WorkPanel />

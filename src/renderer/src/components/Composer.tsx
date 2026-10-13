@@ -23,7 +23,6 @@ interface DocAttachment {
 }
 
 export function Composer() {
-  const [text, setText] = useState("");
   const [images, setImages] = useState<PromptImage[]>([]);
   const [docs, setDocs] = useState<DocAttachment[]>([]);
   const [files, setFiles] = useState<FileSearchResult[]>([]);
@@ -35,6 +34,14 @@ export function Composer() {
   const pushToast = useAppStore((state) => state.pushToast);
   const setView = useAppStore((state) => state.setView);
   const busy = useAppStore((state) => state.busy);
+  const sessionId = snapshot?.sessionId ?? "";
+  const text = useAppStore((state) => (sessionId ? state.composerDrafts[sessionId] ?? "" : ""));
+  const setComposerDraft = useAppStore((state) => state.setComposerDraft);
+  const setText = (value: string | ((current: string) => string)) => {
+    if (!sessionId) return;
+    const current = useAppStore.getState().composerDrafts[sessionId] ?? "";
+    setComposerDraft(sessionId, typeof value === "function" ? value(current) : value);
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendingRef = useRef(false);
   const gpa = snapshot?.gpa;
@@ -268,7 +275,7 @@ export function Composer() {
           )}
         </div>
       )}
-      {snapshot?.gpa && <PlanTimeline state={snapshot.gpa} />}
+      {snapshot?.gpa && <PlanTimeline state={snapshot.gpa} isRunning={busy || Boolean(snapshot.isStreaming)} />}
       {(filteredCommands.length > 0 || files.length > 0) && (
         <div className="mb-2 max-h-40 overflow-auto rounded-lg border border-[#33392a] bg-[#12140f] p-2 text-sm">
           {filteredCommands.map((command) => (

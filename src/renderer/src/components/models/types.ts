@@ -115,7 +115,9 @@ export function configFromProvider(provider: UiProvider): CustomProviderConfig {
   const models: CustomModelConfig[] = provider.models.map((model) => ({
     id: model.id,
     ...(model.alias?.trim() ? { name: model.alias.trim() } : {}),
-    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+    ...(model.thinkingLevels.length > 0 || model.reasoning
+      ? { reasoning: model.thinkingLevels.length > 0 ? true : model.reasoning }
+      : {}),
     ...(model.input !== undefined ? { input: model.input } : {}),
     ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
     ...(model.maxTokens ? { maxTokens: model.maxTokens } : {}),

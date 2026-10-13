@@ -33,7 +33,7 @@ import {
   parseGpaCheckboxCompletions,
   parseGpaCompletedTaskDeclarations,
   parseGpaPlanTasks,
-  reconcileGpaPlanTasks,
+  liveReconcileGpaPlanTasks,
   type GpaState,
 } from "@shared/gpa";
 import {
@@ -162,8 +162,12 @@ export class AgentHost {
   private gpaSkipNextAutoContinue = false;
   /** 最近一次 PLAN 正文，写入 .codexh/gpa-plan.md 供关闭后恢复。 */
   private gpaPlanBody = "";
+  /** 当前助手消息的流式正文，供 Updated Plan 实时解析。 */
+  private streamingAssistantText = "";
+  private gpaLiveTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly permissionStore = new PermissionStore();
   private static readonly MAX_GPA_NO_PROGRESS_CONTINUES = 2;
+  private static readonly GPA_LIVE_UPDATE_MS = 120;
 
   constructor(
     private readonly dialogs: DialogBroker,
@@ -210,6 +214,80 @@ export class AgentHost {
 
   private modelsPath(): string {
     return join(getAgentDir(), "models.json");
+  }
+
+  private customModelConfig(provider: string, id: string) {
+    return this.getModelsFile().file.providers?.[provider]?.models?.find((entry) => entry.id === id);
+  }
+
+  private preferredThinkingLevel(provider: string, id: string): ThinkingLevel | undefined {
+    const custom = this.customModelConfig(provider, id)?.defaultThinkingLevel;
+    if (custom && VALID_THINKING_LEVELS.has(custom as ThinkingLevel)) return custom as ThinkingLevel;
+    const perModel = this.runtime?.services.settingsManager.getModelThinkingLevel(provider, id);
+    if (perModel && VALID_THINKING_LEVELS.has(perModel)) return perModel;
+    const global = this.runtime?.services.settingsManager.getDefaultThinkingLevel();
+    if (global && VALID_THINKING_LEVELS.has(global)) return global;
+    return undefined;
+  }
+
+  private thinkingLevelsForModel(provider: string, id: string, reasoning?: boolean): ThinkingLevel[] {
+    const custom = this.customModelConfig(provider, id);
+    const configured = (custom?.thinkingLevels ?? []).filter((level): level is ThinkingLevel =>
+      VALID_THINKING_LEVELS.has(level as ThinkingLevel),
+    );
+    if (configured.length > 0) {
+      return configured.includes("off") ? configured : ["off", ...configured];
+    }
+    return reasoning || custom?.reasoning
+      ? ["off", "minimal", "low", "medium", "high"]
+      : ["off"];
+  }
+
+  private thinkingLevelsForCurrentModel(): ThinkingLevel[] {
+    const session = this.runtime?.session;
+    const model = session?.model;
+    if (!model) return ["off"];
+    const fromSession = session?.getAvailableThinkingLevels?.() as ThinkingLevel[] | undefined;
+    const configured = this.thinkingLevelsForModel(model.provider, model.id, model.reasoning);
+    if (fromSession && fromSession.length > 0) {
+      const allowed = new Set(configured);
+      const intersected = fromSession.filter((level) => allowed.has(level));
+      return intersected.length > 0 ? intersected : fromSession;
+    }
+    return configured;
+  }
+
+  /** models.json 里勾选了思考等级但没写 reasoning 时，补上以便 SDK 真正接受思考等级。 */
+  private async migrateModelReasoningFlags(): Promise<void> {
+    const { file } = this.getModelsFile();
+    let changed = false;
+    for (const provider of Object.values(file.providers ?? {})) {
+      for (const model of provider.models ?? []) {
+        const wantsReasoning =
+          Boolean(model.reasoning) ||
+          (model.thinkingLevels?.length ?? 0) > 0 ||
+          Boolean(model.defaultThinkingLevel);
+        if (wantsReasoning && !model.reasoning) {
+          model.reasoning = true;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) return;
+    writeModelsFile(this.modelsPath(), file);
+    await this.requireModels().refresh({ allowNetwork: false });
+  }
+
+  private async ensureModelReasoning(provider: string, id: string): Promise<void> {
+    await this.migrateModelReasoningFlags();
+    const session = this.runtime?.session;
+    const current = session?.model;
+    if (!current || current.provider !== provider || current.id !== id) return;
+    if (current.reasoning) return;
+    const fresh = this.requireModels().getModel(provider, id);
+    if (fresh?.reasoning) {
+      await session.setModel(fresh);
+    }
   }
 
   private async resolveTrust(cwd: string, extensionsResult?: LoadExtensionsResult): Promise<boolean> {
@@ -283,6 +361,7 @@ export class AgentHost {
           }
         : undefined,
       thinkingLevel: session.thinkingLevel,
+      availableThinkingLevels: this.thinkingLevelsForCurrentModel(),
       resources: this.collectResources(),
       diagnostics: [...runtime.diagnostics],
       modelFallbackMessage: runtime.modelFallbackMessage,
@@ -393,13 +472,18 @@ export class AgentHost {
     if (event.type === "message_start") {
       const role = (event.message as { role?: string } | undefined)?.role;
       if (role === "user") this.setActivity("已收到消息，正在思考…");
-      else if (role === "assistant") this.setActivity("模型正在回复…");
+      else if (role === "assistant") {
+        this.streamingAssistantText = "";
+        this.setActivity("模型正在回复…");
+      }
       return;
     }
     if (event.type === "message_update") {
       const assistantEvent = event.assistantMessageEvent as { type?: string; delta?: string } | undefined;
       if (assistantEvent?.type === "text_delta" && assistantEvent.delta) {
         this.setActivity("正在输出回复…");
+        this.streamingAssistantText += assistantEvent.delta;
+        this.scheduleLiveGpaUpdate();
         this.emit({ type: "text_delta", delta: assistantEvent.delta });
         return;
       }
@@ -482,6 +566,7 @@ export class AgentHost {
     }
     if (event.type === "agent_settled") {
       this.clearActivity();
+      this.flushLiveGpaUpdate();
       this.updateGpaFromMessages();
       this.pushSnapshot();
       // ACT 阶段：任务有推进时自动发送下一条指令，避免每完成一项都要用户手动"继续"。
@@ -492,10 +577,12 @@ export class AgentHost {
     if (event.type === "message_end") {
       const message = event.message as { role?: string; content?: unknown } | undefined;
       if (message?.role === "assistant") {
+        this.flushLiveGpaUpdate();
         // Update GPA on every assistant message so ACT progress is live within
         // a single agent turn (agent_settled only fires once per turn).
         this.updateGpaFromMessages(contentToText(message.content));
       }
+      this.streamingAssistantText = "";
       this.pushSnapshot();
       return;
     }
@@ -559,6 +646,8 @@ export class AgentHost {
       this.unsubscribe = undefined;
     });
     await this.attachSession();
+    const model = this.runtime?.session?.model;
+    if (model) await this.ensureModelReasoning(model.provider, model.id);
     await this.softRestoreGpaPlanFromFile();
     const snapshot = this.snapshot();
     if (!snapshot) throw new Error("打开项目失败");
@@ -711,6 +800,12 @@ export class AgentHost {
     const result = await this.requireRuntime().newSession();
     if (result.cancelled) throw new Error("新建会话被取消");
     await this.attachSession();
+    const model = this.runtime?.session?.model;
+    if (model) {
+      await this.ensureModelReasoning(model.provider, model.id);
+      const preferred = this.preferredThinkingLevel(model.provider, model.id);
+      if (preferred) this.requireSession().setThinkingLevel(preferred);
+    }
     await this.softRestoreGpaPlanFromFile();
     const snapshot = this.snapshot();
     if (!snapshot) throw new Error("新建会话失败");
@@ -939,15 +1034,42 @@ export class AgentHost {
     return "";
   }
 
+  private scheduleLiveGpaUpdate(): void {
+    if (this.gpaState.stage === "off") return;
+    if (this.gpaLiveTimer) return;
+    this.gpaLiveTimer = setTimeout(() => {
+      this.gpaLiveTimer = undefined;
+      this.updateGpaFromMessages(this.streamingAssistantText, { live: true });
+    }, AgentHost.GPA_LIVE_UPDATE_MS);
+  }
+
+  private flushLiveGpaUpdate(): void {
+    if (!this.gpaLiveTimer) return;
+    clearTimeout(this.gpaLiveTimer);
+    this.gpaLiveTimer = undefined;
+    if (this.streamingAssistantText) {
+      this.updateGpaFromMessages(this.streamingAssistantText, { live: true });
+    }
+  }
+
+  private gpaStateChanged(previous: GpaState, next: GpaState): boolean {
+    if (previous.stage !== next.stage) return true;
+    if (previous.awaitingConfirmation !== next.awaitingConfirmation) return true;
+    if (previous.planTasks.length !== next.planTasks.length) return true;
+    return previous.planTasks.some(
+      (task, index) => task.id !== next.planTasks[index]?.id || task.title !== next.planTasks[index]?.title || task.done !== next.planTasks[index]?.done,
+    );
+  }
+
   /** Derive GPA plan/ACT progress from the latest assistant message. */
-  private updateGpaFromMessages(textOverride?: string): void {
+  private updateGpaFromMessages(textOverride?: string, options?: { live?: boolean }): void {
     if (this.gpaState.stage === "off") return;
     const text = textOverride ?? this.latestAssistantText();
     const previous = this.gpaState;
     let next = this.gpaState;
     if (text) {
       if (next.stage === "plan") {
-        next = { ...next, planTasks: reconcileGpaPlanTasks(next.planTasks, text) };
+        next = { ...next, planTasks: liveReconcileGpaPlanTasks(next.planTasks, text) };
         if (text.trim()) this.gpaPlanBody = text;
       }
       if (next.stage === "act") {
@@ -965,8 +1087,8 @@ export class AgentHost {
     }
     const finishedAct =
       next.stage === "act" && next.planTasks.length > 0 && next.planTasks.every((task) => task.done);
-    // A fully completed ACT ends the one-shot GPA workflow.
-    if (finishedAct) {
+    // A fully completed ACT ends the one-shot GPA workflow. During streaming, wait for settle.
+    if (finishedAct && !options?.live) {
       void this.persistGpaPlanFile(
         "completed",
         next.planTasks.map((task) => ({ ...task, done: true })),
@@ -974,7 +1096,12 @@ export class AgentHost {
       next = { ...next, stage: "off", awaitingConfirmation: null };
       this.emit({ type: "toast", toastType: "info", message: "GPA 流程已完成，已自动关闭。" });
     }
-    this.gpaState = { ...next, updatedAt: new Date().toISOString() };
+    const changed = this.gpaStateChanged(previous, next);
+    this.gpaState = { ...next, updatedAt: changed ? new Date().toISOString() : previous.updatedAt };
+    if (options?.live) {
+      if (changed) this.emit({ type: "gpa", gpa: this.gpaState });
+      return;
+    }
     if (!finishedAct && this.gpaState.planTasks.length > 0) {
       const progressed =
         previous.planTasks.filter((task) => task.done).length !==
@@ -1210,21 +1337,27 @@ export class AgentHost {
 
   async listModels(): Promise<{ models: ModelOption[]; providers: ProviderOption[] }> {
     const runtime = this.requireModels();
+    await this.migrateModelReasoningFlags();
     await runtime.refresh({ allowNetwork: false });
     const available = new Set(
       (await runtime.getAvailable().catch(() => runtime.getAvailableSnapshot())).map(
         (model) => `${model.provider}/${model.id}`,
       ),
     );
-    const models: ModelOption[] = runtime.getModels().map((model) => ({
-      provider: model.provider,
-      id: model.id,
-      name: model.name ?? model.id,
-      contextWindow: model.contextWindow,
-      maxTokens: model.maxTokens,
-      reasoning: model.reasoning,
-      available: available.has(`${model.provider}/${model.id}`) || runtime.hasConfiguredAuth(model.provider),
-    }));
+    const models: ModelOption[] = runtime.getModels().map((model) => {
+      const custom = this.customModelConfig(model.provider, model.id);
+      return {
+        provider: model.provider,
+        id: model.id,
+        name: model.name ?? model.id,
+        contextWindow: model.contextWindow,
+        maxTokens: model.maxTokens,
+        reasoning: Boolean(model.reasoning || custom?.reasoning || (custom?.thinkingLevels?.length ?? 0) > 0),
+        available: available.has(`${model.provider}/${model.id}`) || runtime.hasConfiguredAuth(model.provider),
+        thinkingLevels: this.thinkingLevelsForModel(model.provider, model.id, model.reasoning),
+        defaultThinkingLevel: this.preferredThinkingLevel(model.provider, model.id),
+      };
+    });
     const customIds = new Set(Object.keys(this.getModelsFile().file.providers ?? {}));
     const providers: ProviderOption[] = runtime.getProviders().map((provider) => {
       const auth = provider.auth as { apiKey?: unknown; oauth?: unknown } | undefined;
@@ -1243,25 +1376,26 @@ export class AgentHost {
   }
 
   async setModel(provider: string, id: string): Promise<void> {
+    await this.ensureModelReasoning(provider, id);
     const model = this.requireModels().getModel(provider, id);
     if (!model) throw new Error(`找不到模型 ${provider}/${id}`);
     await this.requireSession().setModel(model);
-    // 对话窗口切换模型后，自动应用 models.json 中为该模型配置的默认思考等级。
-    // 仅作用于当前会话，不覆盖全局默认思考等级设置。
-    const customModel = this.getModelsFile().file.providers?.[provider]?.models?.find(
-      (entry) => entry.id === id,
-    );
-    const level = customModel?.defaultThinkingLevel;
-    if (level && VALID_THINKING_LEVELS.has(level as ThinkingLevel)) {
-      this.requireSession().setThinkingLevel(level as ThinkingLevel);
-    }
+    // 对话窗口切换模型后，优先用该模型配置的默认思考等级，否则用全局默认。
+    const preferred = this.preferredThinkingLevel(provider, id);
+    if (preferred) this.requireSession().setThinkingLevel(preferred);
     this.runtime?.services.settingsManager.setDefaultModelAndProvider(provider, id);
     this.pushSnapshot();
   }
 
-  setThinkingLevel(level: ThinkingLevel): void {
-    this.requireSession().setThinkingLevel(level);
-    this.runtime?.services.settingsManager.setDefaultThinkingLevel(level);
+  async setThinkingLevel(level: ThinkingLevel): Promise<void> {
+    const session = this.requireSession();
+    const model = session.model;
+    if (model) await this.ensureModelReasoning(model.provider, model.id);
+    const live = this.requireSession();
+    live.setThinkingLevel(level);
+    if (model) {
+      this.runtime?.services.settingsManager.setModelThinkingLevel(model.provider, model.id, live.thinkingLevel);
+    }
     this.pushSnapshot();
   }
 
@@ -1357,7 +1491,11 @@ export class AgentHost {
     } else if (patch.defaultModel) {
       settings.setDefaultModel(patch.defaultModel);
     }
-    if (patch.defaultThinkingLevel) settings.setDefaultThinkingLevel(patch.defaultThinkingLevel);
+    if (patch.defaultThinkingLevel) {
+      settings.setDefaultThinkingLevel(patch.defaultThinkingLevel);
+      this.runtime?.session?.setThinkingLevel(patch.defaultThinkingLevel);
+      this.pushSnapshot();
+    }
     if (patch.hideThinkingBlock !== undefined) settings.setHideThinkingBlock(patch.hideThinkingBlock);
     if (patch.compactionEnabled !== undefined) settings.setCompactionEnabled(patch.compactionEnabled);
     if (patch.retryEnabled !== undefined) settings.setRetryEnabled(patch.retryEnabled);

@@ -1,5 +1,7 @@
 import { sessionEntryToContextMessages, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import { displayGpaPrompt, isInternalGpaPrompt } from "@shared/gpa";
 import type { GpaState } from "@shared/gpa";
+import type { GpaPlanResumePreview } from "@shared/gpa-plan-file";
 import type {
   ChatMessage,
   ResourceSummary,
@@ -22,6 +24,13 @@ function cloneJson<T>(value: T): T {
   }
 }
 
+function rewriteInternalGpaContent(role: string, content: ChatMessage["content"]): ChatMessage["content"] {
+  if (role !== "user") return content;
+  const text = contentPlainText(content);
+  if (!isInternalGpaPrompt(text)) return content;
+  return displayGpaPrompt(text) ?? "继续执行剩余的 GPA 计划任务";
+}
+
 export function serializeMessage(message: unknown): ChatMessage {
   const msg = cloneJson((message ?? {}) as Record<string, unknown>);
   const role = String(msg.role ?? "unknown");
@@ -29,6 +38,7 @@ export function serializeMessage(message: unknown): ChatMessage {
   if ((role === "compactionSummary" || role === "branchSummary") && (content == null || content === "")) {
     content = String(msg.summary ?? "");
   }
+  content = rewriteInternalGpaContent(role, content);
   return {
     role,
     content,
@@ -187,6 +197,7 @@ export function buildSnapshot(input: {
   queue?: { steering: string[]; followUp: string[] };
   contextUsage?: { tokens?: number | null; contextWindow?: number; percent?: number | null };
   gpa?: GpaState;
+  gpaPlanResume?: GpaPlanResumePreview | null;
 }): SessionSnapshot {
   const messages = input.messages;
   const usage = collectUsage(messages);
@@ -222,5 +233,6 @@ export function buildSnapshot(input: {
     modelFallbackMessage: input.modelFallbackMessage,
     projectTrusted: input.projectTrusted,
     gpa: input.gpa,
+    gpaPlanResume: input.gpaPlanResume ?? null,
   };
 }

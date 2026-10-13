@@ -1,4 +1,5 @@
 import type { GpaState } from "./gpa";
+import type { GpaPlanResumePreview } from "./gpa-plan-file";
 
 export type AppView = "chat" | "sessions" | "extensions" | "skills" | "models" | "settings";
 
@@ -125,6 +126,7 @@ export interface SessionSnapshot {
   modelFallbackMessage?: string;
   projectTrusted: boolean;
   gpa?: GpaState;
+  gpaPlanResume?: GpaPlanResumePreview | null;
 }
 
 export interface SessionListItem {

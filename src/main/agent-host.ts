@@ -24,15 +24,25 @@ import type {
 } from "@shared/types";
 import {
   applyCompletedPlanTasks,
+  buildGpaContinuePrompt,
+  buildGpaResumePrompt,
   createDefaultGpaState,
   detectGpaConfirmation,
   normalizeSequentialPlanTasks,
   parseCanonicalGpaPlanTasks,
+  parseGpaCheckboxCompletions,
   parseGpaCompletedTaskDeclarations,
   parseGpaPlanTasks,
   reconcileGpaPlanTasks,
   type GpaState,
 } from "@shared/gpa";
+import {
+  gpaPlanHasIncompleteTasks,
+  toGpaPlanResumePreview,
+  type GpaPlanFileStatus,
+  type GpaPlanResumePreview,
+} from "@shared/gpa-plan-file";
+import { readGpaPlanFile, writeGpaPlanFile } from "./gpa-plan-io";
 import {
   type CreateAgentSessionRuntimeFactory,
   type CreateAgentSessionRuntimeResult,
@@ -140,7 +150,20 @@ export class AgentHost {
   private activityStartedAt = 0;
   private activityTimer: ReturnType<typeof setInterval> | undefined;
   private gpaState: GpaState = createDefaultGpaState();
+  /**
+   * GPA ACT 自动续跑基线：上次自动续跑时的已完成任务数。
+   * 与 workagent 一致：ACT 未完成时默认续跑，不因「更新计划」而停下来等用户输入继续。
+   */
+  private gpaAutoContinueDone = 0;
+  /** 连续无进展续跑次数。超过上限才停，避免模型空转。 */
+  private gpaAutoContinueStreak = 0;
+  private gpaAutoContinuing = false;
+  /** 用户中止后跳过下一次自动续跑，避免立刻又被拉起来。 */
+  private gpaSkipNextAutoContinue = false;
+  /** 最近一次 PLAN 正文，写入 .codexh/gpa-plan.md 供关闭后恢复。 */
+  private gpaPlanBody = "";
   private readonly permissionStore = new PermissionStore();
+  private static readonly MAX_GPA_NO_PROGRESS_CONTINUES = 2;
 
   constructor(
     private readonly dialogs: DialogBroker,
@@ -267,6 +290,7 @@ export class AgentHost {
       queue: this.queue,
       contextUsage: session.getContextUsage(),
       gpa: this.gpaState,
+      gpaPlanResume: this.gpaResumePreview(),
     });
   }
 
@@ -460,6 +484,9 @@ export class AgentHost {
       this.clearActivity();
       this.updateGpaFromMessages();
       this.pushSnapshot();
+      // ACT 阶段：任务有推进时自动发送下一条指令，避免每完成一项都要用户手动"继续"。
+      // 延迟到当前事件循环之后，确保 settled 收尾流程结束再启动新的 run。
+      setTimeout(() => void this.maybeAutoContinueGpa(), 0);
       return;
     }
     if (event.type === "message_end") {
@@ -516,7 +543,7 @@ export class AgentHost {
     this.cwd = cwd;
     this.queue = { steering: [], followUp: [] };
     this.queuedImages.clear();
-    this.gpaState = createDefaultGpaState();
+    this.resetGpaRuntime();
     this.permissionStore.clearSession();
     const factory = this.createFactory();
     this.runtime = await createAgentSessionRuntime(factory, {
@@ -532,6 +559,7 @@ export class AgentHost {
       this.unsubscribe = undefined;
     });
     await this.attachSession();
+    await this.softRestoreGpaPlanFromFile();
     const snapshot = this.snapshot();
     if (!snapshot) throw new Error("打开项目失败");
     return snapshot;
@@ -593,8 +621,10 @@ export class AgentHost {
   }
 
   async abort(): Promise<void> {
+    this.gpaSkipNextAutoContinue = true;
     await this.requireSession().abort();
     this.clearActivity();
+    void this.persistGpaPlanFile(this.gpaPlanFileStatus());
     this.pushSnapshot();
   }
 
@@ -676,22 +706,24 @@ export class AgentHost {
   }
 
   async newSession(): Promise<SessionSnapshot> {
-    this.gpaState = createDefaultGpaState();
+    this.resetGpaRuntime();
     this.permissionStore.clearSession();
     const result = await this.requireRuntime().newSession();
     if (result.cancelled) throw new Error("新建会话被取消");
     await this.attachSession();
+    await this.softRestoreGpaPlanFromFile();
     const snapshot = this.snapshot();
     if (!snapshot) throw new Error("新建会话失败");
     return snapshot;
   }
 
   async switchSession(path: string): Promise<SessionSnapshot> {
-    this.gpaState = createDefaultGpaState();
+    this.resetGpaRuntime();
     this.permissionStore.clearSession();
     const result = await this.requireRuntime().switchSession(path);
     if (result.cancelled) throw new Error("切换会话被取消");
     await this.attachSession();
+    await this.softRestoreGpaPlanFromFile();
     const snapshot = this.snapshot();
     if (!snapshot) throw new Error("切换会话失败");
     return snapshot;
@@ -752,11 +784,48 @@ export class AgentHost {
     return this.gpaState;
   }
 
-  /** GPA is a single on/off workflow; enabling it always starts at GOAL. */
-  setGpaEnabled(enabled: boolean): GpaState {
-    this.gpaState = enabled
-      ? { ...createDefaultGpaState(), stage: "goal", updatedAt: new Date().toISOString() }
-      : createDefaultGpaState();
+  async peekGpaPlan(): Promise<GpaPlanResumePreview | null> {
+    return this.readGpaResumePreview();
+  }
+
+  /**
+   * GPA 开关。开启时若项目里有未完成计划，先询问是继续还是废弃后重来；
+   * 关闭时把当前进度写回 .codexh/gpa-plan.md，下次可以接着执行。
+   */
+  async setGpaEnabled(enabled: boolean): Promise<GpaState> {
+    if (!enabled) {
+      await this.persistGpaPlanFile(this.gpaPlanFileStatus());
+      this.resetGpaRuntime();
+      this.pushSnapshot();
+      return this.gpaState;
+    }
+
+    const preview = await this.readGpaResumePreview();
+    if (preview) {
+      const choice = await this.dialogs.select(
+        `发现未完成的 GPA 计划（已完成 ${preview.doneCount}/${preview.tasks.length}，剩余 ${preview.pendingCount} 项）`,
+        ["继续执行剩余任务", "重新开始（废弃旧计划）"],
+      );
+      if (!choice) {
+        this.pushSnapshot();
+        return this.gpaState;
+      }
+      if (choice === "重新开始（废弃旧计划）") {
+        await this.abandonGpaPlanFile();
+      } else {
+        const restored = await this.tryRestoreGpaPlanFromFile();
+        this.pushSnapshot();
+        if (restored && this.gpaState.stage === "act") {
+          await this.resumeGpaPlan();
+        }
+        return this.gpaState;
+      }
+    }
+
+    this.gpaState = { ...createDefaultGpaState(), stage: "goal", updatedAt: new Date().toISOString() };
+    this.gpaPlanBody = "";
+    this.gpaAutoContinueDone = 0;
+    this.gpaAutoContinueStreak = 0;
     this.pushSnapshot();
     return this.gpaState;
   }
@@ -771,15 +840,40 @@ export class AgentHost {
     this.advanceGpaStage();
     const message =
       stage === "goal"
-        ? "已确认目标。请进入计划阶段：把目标拆解为原子任务，每个任务使用 `### T1: 标题` 格式并给出验收标准，最后请求确认。"
-        : "已确认计划。请进入执行阶段：按计划顺序逐项执行，每完成一项输出 `✅ 任务 T1 完成`，不要跳过任务。";
+        ? "[internal:gpa-confirm] Continue with the confirmed goal. Produce the PLAN task list and acceptance criteria. Every atomic task heading must use exactly `### T1: Task title`."
+        : "[internal:gpa-confirm] The plan is confirmed. Enter ACT and implement the planned tasks in order. After each task, output `✅ 任务 {ID} 完成` and immediately continue the next unfinished task. Do not wait for the user to type 继续.";
     await this.prompt({ text: message });
   }
 
-  resetGpa(): GpaState {
-    this.gpaState = createDefaultGpaState();
+  async resumeGpaPlan(): Promise<void> {
+    if (this.gpaState.stage === "off") {
+      const restored = await this.tryRestoreGpaPlanFromFile();
+      if (!restored) {
+        this.emit({ type: "toast", toastType: "info", message: "没有可继续的 GPA 计划。" });
+        return;
+      }
+    }
+    if (this.gpaState.stage === "plan") {
+      this.pushSnapshot();
+      return;
+    }
+    if (this.gpaState.stage !== "act") return;
+    const pending = this.gpaState.planTasks.filter((task) => !task.done);
+    if (pending.length === 0) return;
+    this.gpaSkipNextAutoContinue = false;
+    this.gpaAutoContinueStreak = 0;
+    await this.prompt({ text: buildGpaResumePrompt(pending.length) });
+  }
+
+  async resetGpa(): Promise<GpaState> {
+    await this.abandonGpaPlanFile();
+    this.resetGpaRuntime();
     this.pushSnapshot();
     return this.gpaState;
+  }
+
+  async abandonGpaPlan(): Promise<GpaState> {
+    return this.resetGpa();
   }
 
   /** Move to the next stage without sending a message (used by text confirmation). */
@@ -796,6 +890,7 @@ export class AgentHost {
       const text = this.latestAssistantText();
       const canonical = parseCanonicalGpaPlanTasks(text);
       const tasks = canonical.length > 0 ? canonical : parseGpaPlanTasks(text);
+      if (text.trim()) this.gpaPlanBody = text;
       this.gpaState = {
         ...this.gpaState,
         stage: "act",
@@ -803,6 +898,10 @@ export class AgentHost {
         awaitingConfirmation: null,
         updatedAt: new Date().toISOString(),
       };
+      this.gpaAutoContinueDone = 0;
+      this.gpaAutoContinueStreak = 0;
+      this.gpaSkipNextAutoContinue = false;
+      void this.persistGpaPlanFile("in_progress", this.gpaState.planTasks, this.gpaPlanBody);
     }
     this.pushSnapshot();
   }
@@ -810,7 +909,7 @@ export class AgentHost {
   /** A short confirmation message (e.g. "确认") advances the pending stage. */
   private maybeAdvanceGpaOnConfirmation(text: string): void {
     if (this.gpaState.stage === "off" || !this.gpaState.awaitingConfirmation) return;
-    if (!detectGpaConfirmation(text)) return;
+    if (!detectGpaConfirmation(text) && !/\[internal:gpa-confirm\]/i.test(text)) return;
     this.advanceGpaStage();
   }
 
@@ -844,16 +943,19 @@ export class AgentHost {
   private updateGpaFromMessages(textOverride?: string): void {
     if (this.gpaState.stage === "off") return;
     const text = textOverride ?? this.latestAssistantText();
+    const previous = this.gpaState;
     let next = this.gpaState;
     if (text) {
       if (next.stage === "plan") {
         next = { ...next, planTasks: reconcileGpaPlanTasks(next.planTasks, text) };
+        if (text.trim()) this.gpaPlanBody = text;
       }
       if (next.stage === "act") {
         const declarations = parseGpaCompletedTaskDeclarations(text, next.planTasks);
         for (const declaration of declarations) {
           next = applyCompletedPlanTasks(next, declaration.taskIds);
         }
+        next = applyCompletedPlanTasks(next, parseGpaCheckboxCompletions(text, next.planTasks));
         next = { ...next, planTasks: normalizeSequentialPlanTasks(next.planTasks) };
       }
     }
@@ -861,12 +963,221 @@ export class AgentHost {
     if (next.stage === "goal" || next.stage === "plan") {
       next = { ...next, awaitingConfirmation: next.stage };
     }
+    const finishedAct =
+      next.stage === "act" && next.planTasks.length > 0 && next.planTasks.every((task) => task.done);
     // A fully completed ACT ends the one-shot GPA workflow.
-    if (next.stage === "act" && next.planTasks.length > 0 && next.planTasks.every((task) => task.done)) {
+    if (finishedAct) {
+      void this.persistGpaPlanFile(
+        "completed",
+        next.planTasks.map((task) => ({ ...task, done: true })),
+      );
       next = { ...next, stage: "off", awaitingConfirmation: null };
       this.emit({ type: "toast", toastType: "info", message: "GPA 流程已完成，已自动关闭。" });
     }
     this.gpaState = { ...next, updatedAt: new Date().toISOString() };
+    if (!finishedAct && this.gpaState.planTasks.length > 0) {
+      const progressed =
+        previous.planTasks.filter((task) => task.done).length !==
+        this.gpaState.planTasks.filter((task) => task.done).length;
+      if (this.gpaState.stage === "plan" || progressed) {
+        void this.persistGpaPlanFile(this.gpaPlanFileStatus());
+      }
+    }
+  }
+
+  /**
+   * ACT 自动续跑，对齐 workagent 的 terminal disposition：
+   * 计划未全部完成且不是在等用户决策时，必须继续下一项，不能因 update plan 停住。
+   */
+  private async maybeAutoContinueGpa(): Promise<void> {
+    if (this.gpaAutoContinuing) return;
+    if (this.gpaSkipNextAutoContinue) {
+      this.gpaSkipNextAutoContinue = false;
+      return;
+    }
+    if (this.gpaState.stage !== "act") return;
+    if (this.dialogs.hasPending()) return;
+    const tasks = this.gpaState.planTasks;
+    if (tasks.length === 0) return;
+    const doneCount = tasks.filter((task) => task.done).length;
+    if (doneCount >= tasks.length) return;
+    if (this.queue.steering.length > 0 || this.queue.followUp.length > 0) return;
+    const nextTask = tasks.find((task) => !task.done);
+    if (!nextTask) return;
+
+    const madeProgress = doneCount > this.gpaAutoContinueDone;
+    if (madeProgress) {
+      this.gpaAutoContinueStreak = 0;
+    } else {
+      this.gpaAutoContinueStreak += 1;
+      if (this.gpaAutoContinueStreak > AgentHost.MAX_GPA_NO_PROGRESS_CONTINUES) return;
+    }
+    this.gpaAutoContinueDone = doneCount;
+    this.gpaAutoContinuing = true;
+    try {
+      await this.prompt({
+        text: buildGpaContinuePrompt({ nextTask, doneCount, totalCount: tasks.length }),
+      });
+    } catch (error) {
+      this.emit({
+        type: "toast",
+        toastType: "error",
+        message: `GPA 自动续跑失败：${error instanceof Error ? error.message : String(error)}`,
+      });
+    } finally {
+      this.gpaAutoContinuing = false;
+    }
+  }
+
+  private resetGpaRuntime(): void {
+    this.gpaState = createDefaultGpaState();
+    this.gpaAutoContinueDone = 0;
+    this.gpaAutoContinueStreak = 0;
+    this.gpaAutoContinuing = false;
+    this.gpaSkipNextAutoContinue = false;
+    this.gpaPlanBody = "";
+  }
+
+  private currentSessionId(): string {
+    return this.runtime?.session?.sessionId ?? "";
+  }
+
+  private gpaPlanFileStatus(): GpaPlanFileStatus {
+    if (this.gpaState.stage === "plan") return "awaiting_confirmation";
+    if (this.gpaState.stage === "act") {
+      return this.gpaState.planTasks.length > 0 && this.gpaState.planTasks.every((task) => task.done)
+        ? "completed"
+        : "in_progress";
+    }
+    if (this.gpaState.planTasks.some((task) => !task.done)) return "in_progress";
+    return "in_progress";
+  }
+
+  private gpaResumePreview(): GpaPlanResumePreview | null {
+    if (this.gpaState.planTasks.length === 0) return null;
+    if (this.gpaState.stage === "off") return null;
+    const pendingTasks = this.gpaState.planTasks.filter((task) => !task.done);
+    return {
+      status: this.gpaPlanFileStatus(),
+      sourceThreadId: this.currentSessionId(),
+      currentThreadId: this.currentSessionId(),
+      sameSession: true,
+      updatedAt: this.gpaState.updatedAt,
+      tasks: this.gpaState.planTasks,
+      body: this.gpaPlanBody,
+      doneCount: this.gpaState.planTasks.length - pendingTasks.length,
+      pendingCount: pendingTasks.length,
+      pendingTasks,
+    };
+  }
+
+  private async persistGpaPlanFile(
+    status: GpaPlanFileStatus,
+    tasks = this.gpaState.planTasks,
+    body = this.gpaPlanBody,
+  ): Promise<void> {
+    if (!this.cwd || tasks.length === 0) return;
+    try {
+      let nextBody = body;
+      if (!nextBody) {
+        const existing = await readGpaPlanFile(this.cwd);
+        nextBody = existing?.body ?? "";
+      }
+      await writeGpaPlanFile(this.cwd, {
+        status,
+        threadId: this.currentSessionId(),
+        updatedAt: new Date().toISOString(),
+        tasks,
+        body: nextBody,
+      });
+    } catch (error) {
+      this.emit({
+        type: "toast",
+        toastType: "warning",
+        message: `写入 GPA 计划文件失败：${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+
+  private async readGpaResumePreview(): Promise<GpaPlanResumePreview | null> {
+    if (!this.cwd) return null;
+    try {
+      const existing = await readGpaPlanFile(this.cwd);
+      if (!gpaPlanHasIncompleteTasks(existing) || !existing) return null;
+      return toGpaPlanResumePreview(existing, this.currentSessionId());
+    } catch {
+      return null;
+    }
+  }
+
+  private async tryRestoreGpaPlanFromFile(): Promise<boolean> {
+    if (!this.cwd) return false;
+    const existing = await readGpaPlanFile(this.cwd);
+    if (!gpaPlanHasIncompleteTasks(existing) || !existing) return false;
+    if (existing.body.trim()) this.gpaPlanBody = existing.body;
+    if (existing.status === "awaiting_confirmation") {
+      this.gpaState = {
+        ...this.gpaState,
+        stage: "plan",
+        awaitingConfirmation: "plan",
+        planTasks: existing.tasks,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      this.gpaState = {
+        ...this.gpaState,
+        stage: "act",
+        awaitingConfirmation: null,
+        planTasks: existing.tasks,
+        updatedAt: new Date().toISOString(),
+      };
+      this.gpaAutoContinueDone = existing.tasks.filter((task) => task.done).length;
+      this.gpaAutoContinueStreak = 0;
+    }
+    await this.persistGpaPlanFile(
+      this.gpaState.stage === "plan" ? "awaiting_confirmation" : "in_progress",
+      this.gpaState.planTasks,
+    );
+    return true;
+  }
+
+  /** 打开项目/切换会话时只恢复时间线，不自动开跑。 */
+  private async softRestoreGpaPlanFromFile(): Promise<void> {
+    const restored = await this.tryRestoreGpaPlanFromFile();
+    if (!restored) return;
+    const pending = this.gpaState.planTasks.filter((task) => !task.done).length;
+    this.emit({
+      type: "toast",
+      toastType: "info",
+      message:
+        this.gpaState.stage === "plan"
+          ? "已恢复未确认的 GPA 计划，确认后即可继续执行。"
+          : `已恢复未完成的 GPA 计划，剩余 ${pending} 项。点击「继续执行」接着做。`,
+    });
+    this.pushSnapshot();
+  }
+
+  private async abandonGpaPlanFile(): Promise<boolean> {
+    if (!this.cwd) return false;
+    try {
+      const existing = await readGpaPlanFile(this.cwd);
+      if (!existing || existing.status === "completed" || existing.status === "abandoned") return false;
+      await writeGpaPlanFile(this.cwd, {
+        status: "abandoned",
+        threadId: existing.threadId || this.currentSessionId(),
+        updatedAt: new Date().toISOString(),
+        tasks: existing.tasks,
+        body: existing.body,
+      });
+      return true;
+    } catch (error) {
+      this.emit({
+        type: "toast",
+        toastType: "warning",
+        message: `废弃 GPA 计划失败：${error instanceof Error ? error.message : String(error)}`,
+      });
+      return false;
+    }
   }
 
   async navigateTree(targetId: string, summarize = false): Promise<SessionSnapshot> {

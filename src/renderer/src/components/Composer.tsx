@@ -256,6 +256,16 @@ export function Composer() {
               {gpa.awaitingConfirmation === "goal" ? "✓ 确认目标，进入计划" : "✓ 确认计划，开始执行"}
             </button>
           )}
+          {gpa?.stage === "act" && (snapshot?.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy && (
+            <button
+              type="button"
+              className="rounded-md bg-[#c4d45a] px-2 py-0.5 text-[#16180f]"
+              title="从上次中断的计划项继续执行"
+              onClick={() => void window.pi.resumeGpaPlan()}
+            >
+              继续执行剩余任务（还剩 {snapshot?.gpaPlanResume?.pendingCount} 项）
+            </button>
+          )}
         </div>
       )}
       {snapshot?.gpa && <PlanTimeline state={snapshot.gpa} />}

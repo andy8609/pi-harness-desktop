@@ -62,6 +62,9 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   ipcMain.handle("app:getGpaState", () => wrap(() => host.getGpaState()));
   ipcMain.handle("app:setGpaEnabled", (_event, enabled: boolean) => wrap(() => host.setGpaEnabled(enabled)));
   ipcMain.handle("app:confirmGpa", () => wrap(() => host.confirmGpa()));
+  ipcMain.handle("app:resumeGpaPlan", () => wrap(() => host.resumeGpaPlan()));
+  ipcMain.handle("app:abandonGpaPlan", () => wrap(() => host.abandonGpaPlan()));
+  ipcMain.handle("app:peekGpaPlan", () => wrap(() => host.peekGpaPlan()));
   ipcMain.handle("app:resetGpa", () => wrap(() => host.resetGpa()));
   ipcMain.handle("app:listPermissionRules", () => wrap(() => host.listPermissionRules()));
   ipcMain.handle("app:forgetPermissionRule", (_event, key: string) => wrap(() => host.forgetPermissionRule(key)));

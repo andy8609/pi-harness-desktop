@@ -58,6 +58,10 @@ export class DialogBroker {
     return typeof value === "string" ? value : undefined;
   }
 
+  hasPending(): boolean {
+    return this.pending.size > 0;
+  }
+
   rejectAll(reason: string): void {
     for (const [id, pending] of this.pending) {
       pending.reject(new Error(reason));

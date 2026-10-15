@@ -16,10 +16,12 @@ type Decision = (typeof DECISIONS)[number];
  * - Secret/credential paths are hard-blocked for read/write/edit.
  * - High-risk shell commands ask once, and can be remembered per session or
  *   persisted to disk.
+ * - Project full-trust skips those prompts (secret paths stay blocked).
  */
 export function createPermissionExtension(
   dialogs: DialogBroker,
   store: PermissionStore,
+  getCwd: () => string,
 ): (pi: ExtensionAPI) => void {
   return (pi: ExtensionAPI): void => {
     pi.on("tool_call", async (event) => {
@@ -40,6 +42,7 @@ export function createPermissionExtension(
         const command = typeof input.command === "string" ? input.command : "";
         const risk = classifyShellRisk(command);
         if (risk === "routine") return;
+        if (store.isFullTrust(getCwd())) return;
 
         const key = `shell:${risk}:${command.replace(/\s+/g, " ").trim()}`;
         if (store.isAllowed(key)) return;

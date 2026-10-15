@@ -160,7 +160,7 @@ export class AgentHost {
   private gpaAutoContinuing = false;
   /** 用户中止后跳过下一次自动续跑，避免立刻又被拉起来。 */
   private gpaSkipNextAutoContinue = false;
-  /** 最近一次 PLAN 正文，写入 .codexh/gpa-plan.md 供关闭后恢复。 */
+  /** 最近一次 PLAN 正文，写入 .pi-plan/gpa-plan.md 供关闭后恢复。 */
   private gpaPlanBody = "";
   /** 当前助手消息的流式正文，供 Updated Plan 实时解析。 */
   private streamingAssistantText = "";
@@ -366,6 +366,7 @@ export class AgentHost {
       diagnostics: [...runtime.diagnostics],
       modelFallbackMessage: runtime.modelFallbackMessage,
       projectTrusted: runtime.services.settingsManager.isProjectTrusted(),
+      fullTrust: this.permissionStore.isFullTrust(this.runtime?.cwd ?? this.cwd),
       queue: this.queue,
       contextUsage: session.getContextUsage(),
       gpa: this.gpaState,
@@ -599,7 +600,7 @@ export class AgentHost {
         modelRuntime: this.requireModels(),
         resourceLoaderOptions: {
           extensionFactories: [
-            createPermissionExtension(this.dialogs, this.permissionStore),
+            createPermissionExtension(this.dialogs, this.permissionStore, () => this.cwd),
             createGpaExtension(() => this.gpaState, this.dialogs),
           ],
         },
@@ -885,7 +886,7 @@ export class AgentHost {
 
   /**
    * GPA 开关。开启时若项目里有未完成计划，先询问是继续还是废弃后重来；
-   * 关闭时把当前进度写回 .codexh/gpa-plan.md，下次可以接着执行。
+   * 关闭时把当前进度写回 .pi-plan/gpa-plan.md，下次可以接着执行。
    */
   async setGpaEnabled(enabled: boolean): Promise<GpaState> {
     if (!enabled) {
@@ -1503,6 +1504,18 @@ export class AgentHost {
     if (patch.followUpMode) settings.setFollowUpMode(patch.followUpMode);
     if (patch.defaultProjectTrust) settings.setDefaultProjectTrust(patch.defaultProjectTrust);
     if (patch.theme) settings.setTheme(patch.theme);
+  }
+
+  setFullTrust(enabled: boolean): boolean {
+    const cwd = this.runtime?.cwd ?? this.cwd;
+    this.permissionStore.setFullTrust(cwd, enabled);
+    if (enabled) this.dialogs.approvePendingPermissions();
+    this.pushSnapshot();
+    return enabled;
+  }
+
+  isFullTrust(): boolean {
+    return this.permissionStore.isFullTrust(this.runtime?.cwd ?? this.cwd);
   }
 
   trustProject(trusted: boolean, includeParent = false): void {

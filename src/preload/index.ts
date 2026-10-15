@@ -55,6 +55,7 @@ const api = {
   setApiKey: (providerId: string, apiKey: string) => ipcRenderer.invoke("app:setApiKey", providerId, apiKey),
   getSettings: () => ipcRenderer.invoke("app:getSettings"),
   updateSettings: (patch: DesktopSettings) => ipcRenderer.invoke("app:updateSettings", patch),
+  setFullTrust: (enabled: boolean) => ipcRenderer.invoke("app:setFullTrust", enabled),
   trustProject: (trusted: boolean, includeParent?: boolean) =>
     ipcRenderer.invoke("app:trustProject", trusted, includeParent),
   exportHtml: () => ipcRenderer.invoke("app:exportHtml"),

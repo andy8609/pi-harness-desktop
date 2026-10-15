@@ -1,6 +1,8 @@
 import type { PlanTask } from "./gpa";
 
-export const GPA_PLAN_RELATIVE_PATH = ".codexh/gpa-plan.md";
+export const GPA_PLAN_DIR = ".pi-plan";
+export const GPA_PLAN_RELATIVE_PATH = ".pi-plan/gpa-plan.md";
+export const GPA_PLAN_LEGACY_RELATIVE_PATH = ".codexh/gpa-plan.md";
 
 export type GpaPlanFileStatus = "awaiting_confirmation" | "in_progress" | "completed" | "abandoned";
 

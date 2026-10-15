@@ -64,7 +64,7 @@ export function App() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="relative min-w-0 flex-1">
+        <main className="relative min-h-0 min-w-0 flex-1">
           <div className={view === "chat" ? "h-full" : "hidden h-full"}>
             <ChatPane />
           </div>

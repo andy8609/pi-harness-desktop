@@ -1,9 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 interface PermissionFile {
   always?: string[];
+  fullTrustCwds?: string[];
+}
+
+function normalizeCwd(cwd: string): string {
+  return resolve(cwd).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 }
 
 /**
@@ -11,25 +16,37 @@ interface PermissionFile {
  *
  * - `session` rules live in memory and reset when the session changes.
  * - `always` rules persist to `~/.pi/agent/desktop-permissions.json`.
+ * - `fullTrust` per project skips risk prompts (secret files stay blocked).
  */
 export class PermissionStore {
   private readonly sessionAllowed = new Set<string>();
   private readonly alwaysAllowed: Set<string>;
+  private readonly fullTrustCwds: Set<string>;
   private readonly path: string;
 
   constructor(path = join(getAgentDir(), "desktop-permissions.json")) {
     this.path = path;
-    this.alwaysAllowed = this.load();
+    const loaded = this.load();
+    this.alwaysAllowed = loaded.always;
+    this.fullTrustCwds = loaded.fullTrust;
   }
 
-  private load(): Set<string> {
+  private load(): { always: Set<string>; fullTrust: Set<string> } {
     try {
-      if (!existsSync(this.path)) return new Set();
+      if (!existsSync(this.path)) return { always: new Set(), fullTrust: new Set() };
       const parsed = JSON.parse(readFileSync(this.path, "utf8")) as PermissionFile;
-      const list = Array.isArray(parsed.always) ? parsed.always : [];
-      return new Set(list.filter((value): value is string => typeof value === "string" && value.length > 0));
+      const always = Array.isArray(parsed.always) ? parsed.always : [];
+      const fullTrust = Array.isArray(parsed.fullTrustCwds) ? parsed.fullTrustCwds : [];
+      return {
+        always: new Set(always.filter((value): value is string => typeof value === "string" && value.length > 0)),
+        fullTrust: new Set(
+          fullTrust
+            .filter((value): value is string => typeof value === "string" && value.length > 0)
+            .map(normalizeCwd),
+        ),
+      };
     } catch {
-      return new Set();
+      return { always: new Set(), fullTrust: new Set() };
     }
   }
 
@@ -38,8 +55,14 @@ export class PermissionStore {
       mkdirSync(dirname(this.path), { recursive: true });
       writeFileSync(
         this.path,
-        `${JSON.stringify({ always: [...this.alwaysAllowed].sort() }, null, 2)}\n`,
-        "utf8",
+        `${JSON.stringify(
+          {
+            always: [...this.alwaysAllowed].sort(),
+            fullTrustCwds: [...this.fullTrustCwds].sort(),
+          },
+          null,
+          2,
+        )}\n`,
       );
     } catch {
       // Persistence failure must never block tool execution.
@@ -48,6 +71,19 @@ export class PermissionStore {
 
   isAllowed(key: string): boolean {
     return this.sessionAllowed.has(key) || this.alwaysAllowed.has(key);
+  }
+
+  isFullTrust(cwd: string): boolean {
+    if (!cwd) return false;
+    return this.fullTrustCwds.has(normalizeCwd(cwd));
+  }
+
+  setFullTrust(cwd: string, enabled: boolean): void {
+    if (!cwd) return;
+    const key = normalizeCwd(cwd);
+    if (enabled) this.fullTrustCwds.add(key);
+    else this.fullTrustCwds.delete(key);
+    this.persist();
   }
 
   allowSession(key: string): void {

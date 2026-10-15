@@ -195,6 +195,7 @@ export function buildSnapshot(input: {
   diagnostics: Array<{ type: string; message: string }>;
   modelFallbackMessage?: string;
   projectTrusted: boolean;
+  fullTrust?: boolean;
   queue?: { steering: string[]; followUp: string[] };
   contextUsage?: { tokens?: number | null; contextWindow?: number; percent?: number | null };
   gpa?: GpaState;
@@ -237,6 +238,7 @@ export function buildSnapshot(input: {
     diagnostics: input.diagnostics,
     modelFallbackMessage: input.modelFallbackMessage,
     projectTrusted: input.projectTrusted,
+    fullTrust: Boolean(input.fullTrust),
     gpa: input.gpa,
     gpaPlanResume: input.gpaPlanResume ?? null,
   };

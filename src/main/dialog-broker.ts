@@ -5,6 +5,7 @@ import type { DialogKind, DialogRequest, DialogResponse } from "@shared/types";
 interface Pending {
   resolve: (value: string | boolean | undefined) => void;
   reject: (error: Error) => void;
+  kind: DialogKind;
 }
 
 export class DialogBroker {
@@ -23,7 +24,7 @@ export class DialogBroker {
     const id = randomUUID();
     const payload: DialogRequest = { id, ...request };
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, { resolve, reject, kind: request.kind });
       window.webContents.send("dialog:request", payload);
     });
   }
@@ -60,6 +61,15 @@ export class DialogBroker {
 
   hasPending(): boolean {
     return this.pending.size > 0;
+  }
+
+  /** Auto-approve in-flight risk prompts when the user turns on full trust. */
+  approvePendingPermissions(): void {
+    for (const [id, pending] of [...this.pending]) {
+      if (pending.kind !== "permission") continue;
+      this.pending.delete(id);
+      pending.resolve("本会话允许");
+    }
   }
 
   rejectAll(reason: string): void {

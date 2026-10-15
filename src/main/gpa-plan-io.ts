@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   formatGpaPlanMarkdown,
+  GPA_PLAN_LEGACY_RELATIVE_PATH,
   GPA_PLAN_RELATIVE_PATH,
   parseGpaPlanMarkdown,
   type GpaPlanFileDocument,
@@ -13,14 +14,17 @@ export function resolveGpaPlanFilePath(cwd: string): string {
   return join(cwd, GPA_PLAN_RELATIVE_PATH);
 }
 
-export async function readGpaPlanFile(cwd: string): Promise<GpaPlanFileDocument | null> {
+async function readPlanAt(filePath: string): Promise<GpaPlanFileDocument | null> {
   try {
-    const content = await readFile(resolveGpaPlanFilePath(cwd), "utf8");
-    return parseGpaPlanMarkdown(content);
+    return parseGpaPlanMarkdown(await readFile(filePath, "utf8"));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+}
+
+export async function readGpaPlanFile(cwd: string): Promise<GpaPlanFileDocument | null> {
+  return (await readPlanAt(join(cwd, GPA_PLAN_RELATIVE_PATH))) ?? readPlanAt(join(cwd, GPA_PLAN_LEGACY_RELATIVE_PATH));
 }
 
 export async function writeGpaPlanFile(

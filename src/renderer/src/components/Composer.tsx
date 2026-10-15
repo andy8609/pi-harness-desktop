@@ -1,4 +1,4 @@
-import { FileText, Paperclip, Stop, PaperPlaneTilt, X } from "@phosphor-icons/react";
+import { FileText, Paperclip, ShieldCheck, Stop, PaperPlaneTilt, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FileSearchResult, PromptImage, SlashCommand } from "@shared/types";
 import type { GpaStage } from "@shared/gpa";
@@ -46,6 +46,8 @@ export function Composer() {
   const sendingRef = useRef(false);
   const gpa = snapshot?.gpa;
   const gpaEnabled = Boolean(gpa && gpa.stage !== "off");
+  const fullTrust = Boolean(snapshot?.fullTrust);
+  const setDialog = useAppStore((state) => state.setDialog);
 
   const slashQuery = text.startsWith("/") ? text.slice(1).split(/\s/)[0] : "";
   const filteredCommands = useMemo(
@@ -235,6 +237,29 @@ export function Composer() {
     }
   };
 
+  const toggleFullTrust = async () => {
+    if (!snapshot) return;
+    const next = !fullTrust;
+    useAppStore.setState((state) =>
+      state.snapshot ? { snapshot: { ...state.snapshot, fullTrust: next } } : {},
+    );
+    try {
+      await window.pi.setFullTrust(next);
+      if (next) {
+        const dialog = useAppStore.getState().dialog;
+        if (dialog?.kind === "permission") {
+          window.pi.respondDialog({ id: dialog.id, cancelled: false, value: "本会话允许" });
+          setDialog(undefined);
+        }
+      }
+    } catch (error) {
+      useAppStore.setState((state) =>
+        state.snapshot ? { snapshot: { ...state.snapshot, fullTrust: !next } } : {},
+      );
+      pushToast("error", error instanceof Error ? error.message : "无法切换完全信任");
+    }
+  };
+
   return (
     <div className="border-t border-[#33392a] bg-[#1a1d16] p-3">
       {snapshot && (
@@ -250,6 +275,23 @@ export function Composer() {
             onClick={() => void window.pi.setGpaEnabled(!gpaEnabled)}
           >
             GPA {gpaEnabled ? "已开启" : "关闭"}
+          </button>
+          <button
+            type="button"
+            title={
+              fullTrust
+                ? "已完全信任此项目：跳过工具风险确认。密钥/凭据文件仍禁止访问。"
+                : "开启后跳过此项目的工具风险确认框，运行中不再弹确认。密钥/凭据文件仍禁止访问。"
+            }
+            className={`rounded-md border px-2 py-0.5 ${
+              fullTrust
+                ? "border-[#c4d45a] bg-[#c4d45a] text-[#16180f]"
+                : "border-[#33392a] text-[#9a937c] hover:border-[#c4d45a]"
+            }`}
+            onClick={() => void toggleFullTrust()}
+          >
+            <ShieldCheck size={12} className="mr-1 inline" />
+            完全信任 {fullTrust ? "已开启" : "关闭"}
           </button>
           {gpaEnabled && gpa && (
             <span className="rounded bg-[#22261c] px-2 py-0.5 text-[#c4d45a]">{GPA_STAGE_LABEL[gpa.stage]}</span>

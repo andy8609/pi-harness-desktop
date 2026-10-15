@@ -299,7 +299,7 @@ export function buildGpaContinuePrompt(input: {
 
 export function buildGpaResumePrompt(pendingCount: number): string {
   return [
-    "[internal:gpa-resume] Continue the remaining incomplete GPA plan tasks from .codexh/gpa-plan.md.",
+    "[internal:gpa-resume] Continue the remaining incomplete GPA plan tasks from .pi-plan/gpa-plan.md.",
     "Do not restart GOAL/PLAN analysis. Execute the next unfinished task and keep marking completed tasks with `✅ 任务 {ID} 完成`.",
     `还剩 ${pendingCount} 项。`,
   ].join(" ");

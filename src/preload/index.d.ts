@@ -40,6 +40,7 @@ declare const api: {
     setApiKey: (providerId: string, apiKey: string) => Promise<any>;
     getSettings: () => Promise<any>;
     updateSettings: (patch: DesktopSettings) => Promise<any>;
+    setFullTrust: (enabled: boolean) => Promise<boolean>;
     trustProject: (trusted: boolean, includeParent?: boolean) => Promise<any>;
     exportHtml: () => Promise<any>;
     exportJsonl: () => Promise<any>;
@@ -65,4 +66,9 @@ declare const api: {
     onCatalog: (listener: (packages: CatalogPackage[]) => void) => () => Electron.IpcRenderer;
 };
 export type PiApi = typeof api;
+declare global {
+    interface Window {
+        pi: PiApi;
+    }
+}
 export {};

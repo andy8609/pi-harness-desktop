@@ -42,198 +42,65 @@ function isVisible(node: TreeNode, mode: TreeFilterMode): boolean {
 }
 
 function filterForest(nodes: TreeNode[], mode: TreeFilterMode): TreeNode[] {
+  const mapped = new Map<TreeNode, TreeNode>();
+  const stack = [...nodes];
+  const ordered: TreeNode[] = [];
+  while (stack.length) {
+    const node = stack.pop()!;
+    ordered.push(node);
+    for (let i = node.children.length - 1; i >= 0; i -= 1) stack.push(node.children[i]);
+  }
+  for (let i = ordered.length - 1; i >= 0; i -= 1) {
+    const node = ordered[i];
+    const nextChildren: TreeNode[] = [];
+    for (const child of node.children) {
+      const mappedChild = mapped.get(child);
+      if (!mappedChild) continue;
+      if (isVisible(child, mode)) nextChildren.push(mappedChild);
+      else nextChildren.push(...mappedChild.children);
+    }
+    mapped.set(node, { ...node, children: nextChildren });
+  }
   const out: TreeNode[] = [];
   for (const node of nodes) {
-    const children = filterForest(node.children, mode);
-    if (isVisible(node, mode)) {
-      out.push({ ...node, children });
-    } else {
-      out.push(...children);
-    }
+    const mappedNode = mapped.get(node);
+    if (!mappedNode) continue;
+    if (isVisible(node, mode)) out.push(mappedNode);
+    else out.push(...mappedNode.children);
   }
   return out;
 }
 
-function collectBranchIds(nodes: TreeNode[], into: Set<string> = new Set()): Set<string> {
-  for (const node of nodes) {
+function collectBranchIds(nodes: TreeNode[]): Set<string> {
+  const into = new Set<string>();
+  const stack = [...nodes];
+  while (stack.length) {
+    const node = stack.pop()!;
     if (node.children.length > 1) into.add(node.id);
-    collectBranchIds(node.children, into);
+    for (const child of node.children) stack.push(child);
   }
   return into;
 }
 
-const GUIDE = "border-[#8a8468]";
-
-function NodeRow({
-  node,
-  selected,
-  isBranch,
-  isCollapsed,
-  onToggle,
-  onSelect,
-  onNavigate,
-  onFork,
-}: {
-  node: TreeNode;
-  selected: boolean;
-  isBranch: boolean;
-  isCollapsed: boolean;
-  onToggle: (id: string) => void;
-  onSelect: (id: string) => void;
-  onNavigate: (id: string) => void;
-  onFork: (id: string) => void;
-}) {
-  return (
-    <div className={`mb-0.5 flex items-start gap-1 rounded-md px-1 py-1 ${selected ? "bg-[#22261c]" : ""}`}>
-      {isBranch ? (
-        <button
-          className="mt-0.5 shrink-0 text-[#9a937c] hover:text-[#c4d45a]"
-          title={isCollapsed ? "展开旁支" : "折叠旁支"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggle(node.id);
-          }}
-        >
-          {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
-        </button>
-      ) : (
-        <span className="mt-0.5 inline-block w-3 shrink-0" />
-      )}
-      <button
-        className={`min-w-0 flex-1 text-left text-sm hover:text-[#c4d45a] ${selected ? "text-[#c4d45a]" : ""}`}
-        onClick={() => onSelect(node.id)}
-        onDoubleClick={() => onNavigate(node.id)}
-      >
-        <div className="text-[11px] text-[#9a937c]">{node.type}</div>
-        <div className="break-words">{node.label || node.summary}</div>
-      </button>
-      {isUserNode(node) && (
-        <button
-          className="shrink-0 text-xs text-[#c4d45a]"
-          onClick={(event) => {
-            event.stopPropagation();
-            onFork(node.id);
-          }}
-        >
-          fork
-        </button>
-      )}
-      {selected && (
-        <button
-          className="shrink-0 text-xs text-[#c4d45a]"
-          onClick={(event) => {
-            event.stopPropagation();
-            onNavigate(node.id);
-          }}
-        >
-          跳转
-        </button>
-      )}
-    </div>
-  );
-}
-
-function TreeChildren({
-  nodes,
-  collapsed,
-  selectedId,
-  onToggle,
-  onSelect,
-  onNavigate,
-  onFork,
-}: {
-  nodes: TreeNode[];
-  collapsed: Set<string>;
-  selectedId?: string;
-  onToggle: (id: string) => void;
-  onSelect: (id: string) => void;
-  onNavigate: (id: string) => void;
-  onFork: (id: string) => void;
-}) {
-  if (nodes.length === 0) return null;
-  if (nodes.length === 1) {
-    return (
-      <NodeView
-        node={nodes[0]}
-        collapsed={collapsed}
-        selectedId={selectedId}
-        onToggle={onToggle}
-        onSelect={onSelect}
-        onNavigate={onNavigate}
-        onFork={onFork}
-      />
-    );
+/** Flatten to a list so long linear conversations don't nest React hundreds of levels deep. */
+function flattenForest(
+  nodes: TreeNode[],
+  collapsed: Set<string>,
+): Array<{ node: TreeNode; depth: number; isBranch: boolean }> {
+  const rows: Array<{ node: TreeNode; depth: number; isBranch: boolean }> = [];
+  const stack: Array<{ node: TreeNode; depth: number }> = [];
+  for (let i = nodes.length - 1; i >= 0; i -= 1) stack.push({ node: nodes[i], depth: 0 });
+  while (stack.length) {
+    const { node, depth } = stack.pop()!;
+    const isBranch = node.children.length > 1;
+    rows.push({ node, depth, isBranch });
+    if (isBranch && collapsed.has(node.id)) continue;
+    const childDepth = isBranch ? depth + 1 : depth;
+    for (let i = node.children.length - 1; i >= 0; i -= 1) {
+      stack.push({ node: node.children[i], depth: childDepth });
+    }
   }
-  return (
-    <div className={`ml-2 border-l border-dashed ${GUIDE}`}>
-      {nodes.map((child, index) => {
-        const last = index === nodes.length - 1;
-        return (
-          <div key={child.id} className="relative pl-3">
-            <span className={`pointer-events-none absolute top-[13px] left-0 w-3 border-t border-dashed ${GUIDE}`} />
-            {last && <span className="pointer-events-none absolute top-[14px] bottom-0 -left-px w-px bg-[#1a1d16]" />}
-            <NodeView
-              node={child}
-              collapsed={collapsed}
-              selectedId={selectedId}
-              onToggle={onToggle}
-              onSelect={onSelect}
-              onNavigate={onNavigate}
-              onFork={onFork}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function NodeView({
-  node,
-  collapsed,
-  selectedId,
-  onToggle,
-  onSelect,
-  onNavigate,
-  onFork,
-}: {
-  node: TreeNode;
-  collapsed: Set<string>;
-  selectedId?: string;
-  onToggle: (id: string) => void;
-  onSelect: (id: string) => void;
-  onNavigate: (id: string) => void;
-  onFork: (id: string) => void;
-}) {
-  const isBranch = node.children.length > 1;
-  const isCollapsed = isBranch && collapsed.has(node.id);
-  const selected = selectedId === node.id;
-
-  return (
-    <div>
-      <NodeRow
-        node={node}
-        selected={selected}
-        isBranch={isBranch}
-        isCollapsed={isCollapsed}
-        onToggle={onToggle}
-        onSelect={onSelect}
-        onNavigate={onNavigate}
-        onFork={onFork}
-      />
-      {!isCollapsed && (
-        <TreeChildren
-          nodes={node.children}
-          collapsed={collapsed}
-          selectedId={selectedId}
-          onToggle={onToggle}
-          onSelect={onSelect}
-          onNavigate={onNavigate}
-          onFork={onFork}
-        />
-      )}
-    </div>
-  );
+  return rows;
 }
 
 export function SessionTree({
@@ -251,6 +118,7 @@ export function SessionTree({
 
   const forest = useMemo(() => filterForest(nodes, mode), [nodes, mode]);
   const branchIds = useMemo(() => collectBranchIds(forest), [forest]);
+  const rows = useMemo(() => flattenForest(forest, collapsed), [forest, collapsed]);
 
   useEffect(() => {
     setCollapsed(new Set());
@@ -288,26 +156,74 @@ export function SessionTree({
         >
           全部折叠
         </button>
+        <span className="ml-auto text-[10px] text-[#9a937c]">{rows.length} 个节点</span>
       </div>
       {forest.length === 0 ? (
         <div className="text-sm text-[#9a937c]">该筛选下没有节点。可切换到「全部」查看记账条目。</div>
       ) : (
-        <TreeChildren
-          nodes={forest}
-          collapsed={collapsed}
-          selectedId={selectedId}
-          onToggle={(id) => {
-            setCollapsed((prev) => {
-              const next = new Set(prev);
-              if (next.has(id)) next.delete(id);
-              else next.add(id);
-              return next;
-            });
-          }}
-          onSelect={setSelectedId}
-          onNavigate={onNavigate}
-          onFork={onFork}
-        />
+        <div>
+          {rows.map(({ node, depth, isBranch }) => {
+            const isCollapsed = isBranch && collapsed.has(node.id);
+            const selected = selectedId === node.id;
+            return (
+              <div
+                key={node.id}
+                className={`mb-0.5 flex items-start gap-1 rounded-md px-1 py-1 ${selected ? "bg-[#22261c]" : ""}`}
+                style={{ paddingLeft: 4 + depth * 14 }}
+              >
+                {isBranch ? (
+                  <button
+                    className="mt-0.5 shrink-0 text-[#9a937c] hover:text-[#c4d45a]"
+                    title={isCollapsed ? "展开旁支" : "折叠旁支"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCollapsed((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(node.id)) next.delete(node.id);
+                        else next.add(node.id);
+                        return next;
+                      });
+                    }}
+                  >
+                    {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
+                  </button>
+                ) : (
+                  <span className="mt-0.5 inline-block w-3 shrink-0" />
+                )}
+                <button
+                  className={`min-w-0 flex-1 text-left text-sm hover:text-[#c4d45a] ${selected ? "text-[#c4d45a]" : ""}`}
+                  onClick={() => setSelectedId(node.id)}
+                  onDoubleClick={() => onNavigate(node.id)}
+                >
+                  <div className="text-[11px] text-[#9a937c]">{node.type}</div>
+                  <div className="break-words">{node.label || node.summary}</div>
+                </button>
+                {isUserNode(node) && (
+                  <button
+                    className="shrink-0 text-xs text-[#c4d45a]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onFork(node.id);
+                    }}
+                  >
+                    fork
+                  </button>
+                )}
+                {selected && (
+                  <button
+                    className="shrink-0 text-xs text-[#c4d45a]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onNavigate(node.id);
+                    }}
+                  >
+                    跳转
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

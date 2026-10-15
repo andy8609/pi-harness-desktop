@@ -81,6 +81,7 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   );
   ipcMain.handle("app:getSettings", () => wrap(() => host.getSettings()));
   ipcMain.handle("app:updateSettings", (_event, patch: DesktopSettings) => wrap(() => host.updateSettings(patch)));
+  ipcMain.handle("app:setFullTrust", (_event, enabled: boolean) => wrap(() => host.setFullTrust(enabled)));
   ipcMain.handle("app:trustProject", (_event, trusted: boolean, includeParent?: boolean) =>
     wrap(() => host.trustProject(trusted, includeParent)),
   );

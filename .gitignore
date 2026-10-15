@@ -8,3 +8,9 @@ docs/
 *.log
 .DS_Store
 *.tsbuildinfo
+# tsc emit beside sources — Vite resolves .js before .ts
+src/main/**/*.js
+src/main/**/*.d.ts
+src/shared/**/*.js
+src/shared/**/*.d.ts
+src/preload/*.js

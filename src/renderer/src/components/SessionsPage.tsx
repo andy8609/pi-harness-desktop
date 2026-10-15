@@ -15,6 +15,7 @@ export function SessionsPage() {
   const pushToast = useAppStore((state) => state.pushToast);
   const setView = useAppStore((state) => state.setView);
   const [tree, setTree] = useState<TreeNode[]>([]);
+  const [treeError, setTreeError] = useState<string>();
   const [name, setName] = useState("");
   const [compactHint, setCompactHint] = useState("");
   const [selectedPath, setSelectedPath] = useState<string>();
@@ -24,9 +25,13 @@ export function SessionsPage() {
 
   const loadTree = async (path?: string) => {
     try {
+      setTreeError(undefined);
       setTree(await window.pi.getTree(path));
-    } catch {
+    } catch (error) {
       setTree([]);
+      const message = error instanceof Error ? error.message : String(error);
+      setTreeError(message);
+      pushToast("error", `加载会话树失败：${message}`);
     }
   };
 
@@ -53,8 +58,8 @@ export function SessionsPage() {
   };
 
   return (
-    <section className="h-full overflow-auto px-6 py-5">
-      <div className="mb-4 flex items-center justify-between">
+    <section className="flex h-full min-h-0 flex-col px-6 py-5">
+      <div className="mb-4 shrink-0 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">会话</h1>
           <p className="text-sm text-[#9a937c]">单击预览会话树，双击还原到对话窗口</p>
@@ -92,7 +97,7 @@ export function SessionsPage() {
         </div>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-4 shrink-0 flex flex-wrap gap-2">
         <input className="rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-sm" placeholder="会话名称" value={name} onChange={(e) => setName(e.target.value)} />
         <button
           className="rounded border border-[#33392a] px-3 py-1 text-sm"
@@ -127,8 +132,8 @@ export function SessionsPage() {
         </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-2">
+      <div className="grid min-h-0 flex-1 gap-4 grid-rows-[minmax(140px,36%)_minmax(0,1fr)] lg:grid-rows-1 lg:grid-cols-[minmax(220px,1.1fr)_minmax(280px,0.9fr)]">
+        <div className="min-h-0 space-y-2 overflow-auto pr-1">
           {sessions.map((session) => {
             const selected = previewPath === session.path;
             const isCurrent = currentPath === session.path;
@@ -154,24 +159,32 @@ export function SessionsPage() {
           })}
           {sessions.length === 0 && <div className="text-sm text-[#9a937c]">当前项目还没有会话。</div>}
         </div>
-        <div>
-          <h2 className="mb-2 font-medium">会话树</h2>
-          <p className="mb-2 text-xs text-[#9a937c]">单击选中节点，双击跳转到对话中的该节点</p>
-          <SessionTree
-            nodes={tree}
-            onNavigate={async (id) => {
-              await activatePreviewSession();
-              applySnapshot(await window.pi.navigateTree(id));
-              await loadTree(previewPath);
-              setView("chat");
-            }}
-            onFork={async (id) => {
-              await activatePreviewSession();
-              applySnapshot(await window.pi.fork(id));
-              await refreshModelsAndSessions();
-              setView("chat");
-            }}
-          />
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <h2 className="mb-1 shrink-0 font-medium">会话树</h2>
+          <p className="mb-2 shrink-0 text-xs text-[#9a937c]">单击选中节点，双击跳转到对话中的该节点</p>
+          <div className="min-h-0 flex-1 overflow-auto">
+            {treeError ? (
+              <div className="rounded-xl border border-[#33392a] bg-[#1a1d16] p-3 text-sm text-[#e07a5f]">
+                会话树加载失败：{treeError}
+              </div>
+            ) : (
+              <SessionTree
+                nodes={tree}
+                onNavigate={async (id) => {
+                  await activatePreviewSession();
+                  applySnapshot(await window.pi.navigateTree(id));
+                  await loadTree(previewPath);
+                  setView("chat");
+                }}
+                onFork={async (id) => {
+                  await activatePreviewSession();
+                  applySnapshot(await window.pi.fork(id));
+                  await refreshModelsAndSessions();
+                  setView("chat");
+                }}
+              />
+            )}
+          </div>
         </div>
       </div>
     </section>

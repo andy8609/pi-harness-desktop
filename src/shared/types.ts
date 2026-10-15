@@ -126,6 +126,7 @@ export interface SessionSnapshot {
   diagnostics: Array<{ type: string; message: string }>;
   modelFallbackMessage?: string;
   projectTrusted: boolean;
+  fullTrust: boolean;
   gpa?: GpaState;
   gpaPlanResume?: GpaPlanResumePreview | null;
 }

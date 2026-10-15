@@ -5,6 +5,7 @@ release/
 .codebuddy/
 docs/
 .pi/
+.workbuddy/
 *.log
 .DS_Store
 *.tsbuildinfo

@@ -9,6 +9,7 @@ import type {
   SessionUsage,
   ThinkingLevel,
   TreeNode,
+  WatchdogReport,
 } from "@shared/types";
 
 function asThinkingLevel(value: unknown): ThinkingLevel {
@@ -200,6 +201,7 @@ export function buildSnapshot(input: {
   contextUsage?: { tokens?: number | null; contextWindow?: number; percent?: number | null };
   gpa?: GpaState;
   gpaPlanResume?: GpaPlanResumePreview | null;
+  watchdogReports?: WatchdogReport[];
 }): SessionSnapshot {
   const messages = input.messages;
   const usage = collectUsage(messages);
@@ -241,5 +243,6 @@ export function buildSnapshot(input: {
     fullTrust: Boolean(input.fullTrust),
     gpa: input.gpa,
     gpaPlanResume: input.gpaPlanResume ?? null,
+    watchdogReports: input.watchdogReports ?? [],
   };
 }

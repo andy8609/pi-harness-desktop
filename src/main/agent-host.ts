@@ -14,6 +14,9 @@ import type {
   PromptPayload,
   ProviderOption,
   QueueMutation,
+  CreateResourceFileInput,
+  ResourceFile,
+  ResourceFiles,
   ResourceSummary,
   SessionListItem,
   SessionSnapshot,
@@ -21,6 +24,7 @@ import type {
   StreamEvent,
   ThinkingLevel,
   TreeNode,
+  WatchdogReport,
 } from "@shared/types";
 import {
   applyCompletedPlanTasks,
@@ -43,6 +47,16 @@ import {
   type GpaPlanResumePreview,
 } from "@shared/gpa-plan-file";
 import { readGpaPlanFile, writeGpaPlanFile } from "./gpa-plan-io";
+import {
+  createResourceFileOnDisk,
+  emptyResourceFiles,
+  resourceFileName,
+  samePath,
+  toResourceFile,
+  writeAgentsContextFile,
+  writePromptTemplateFile,
+} from "./resource-files";
+import { WATCHDOG_INTERVAL_MS, runWatchdogSubagent } from "./watchdog-subagent";
 import {
   type CreateAgentSessionRuntimeFactory,
   type CreateAgentSessionRuntimeResult,
@@ -168,6 +182,13 @@ export class AgentHost {
   private readonly permissionStore = new PermissionStore();
   private static readonly MAX_GPA_NO_PROGRESS_CONTINUES = 2;
   private static readonly GPA_LIVE_UPDATE_MS = 120;
+  private watchdogTimer: ReturnType<typeof setInterval> | undefined;
+  private watchdogIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  private watchdogAbort: AbortController | undefined;
+  private watchdogRound = 0;
+  private watchdogTurnStartedAt = 0;
+  private watchdogReports: WatchdogReport[] = [];
+  private recentToolLog: string[] = [];
 
   constructor(
     private readonly dialogs: DialogBroker,
@@ -371,6 +392,7 @@ export class AgentHost {
       contextUsage: session.getContextUsage(),
       gpa: this.gpaState,
       gpaPlanResume: this.gpaResumePreview(),
+      watchdogReports: this.watchdogReports,
     });
   }
 
@@ -446,6 +468,7 @@ export class AgentHost {
   }
 
   private async attachSession(): Promise<void> {
+    this.stopWatchdog();
     this.unsubscribe?.();
     const session = this.requireSession();
     await session.bindExtensions({
@@ -468,6 +491,7 @@ export class AgentHost {
   private handleSessionEvent(event: { type: string; [key: string]: unknown }): void {
     if (event.type === "agent_start") {
       this.setActivity("正在连接模型…");
+      this.startWatchdogIfNeeded();
       return;
     }
     if (event.type === "message_start") {
@@ -496,6 +520,7 @@ export class AgentHost {
     }
     if (event.type === "tool_execution_start") {
       const toolName = String(event.toolName ?? "工具");
+      this.recentToolLog = [...this.recentToolLog, toolName].slice(-8);
       this.setActivity(`正在执行 ${toolName}…`);
       this.emit({
         type: "tool_start",
@@ -566,6 +591,7 @@ export class AgentHost {
       return;
     }
     if (event.type === "agent_settled") {
+      this.armWatchdogIdleStop();
       this.clearActivity();
       this.flushLiveGpaUpdate();
       this.updateGpaFromMessages();
@@ -712,6 +738,7 @@ export class AgentHost {
 
   async abort(): Promise<void> {
     this.gpaSkipNextAutoContinue = true;
+    this.stopWatchdog();
     await this.requireSession().abort();
     this.clearActivity();
     void this.persistGpaPlanFile(this.gpaPlanFileStatus());
@@ -1653,10 +1680,189 @@ export class AgentHost {
   }
 
   async dispose(): Promise<void> {
+    this.stopWatchdog();
     this.unsubscribe?.();
     if (this.runtime) {
       await this.runtime.dispose();
       this.runtime = undefined;
     }
+  }
+
+  private lastUserText(): string {
+    const messages = this.runtime ? collectDisplayMessages(this.runtime.session) : [];
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role !== "user") continue;
+      const content = messages[index].content;
+      if (typeof content === "string") return content;
+      if (!Array.isArray(content)) continue;
+      return content.map((part) => (part.type === "text" ? String(part.text ?? "") : "")).join("").trim();
+    }
+    return "";
+  }
+
+  private gpaBrief(): string {
+    const gpa = this.gpaState;
+    if (!gpa || gpa.stage === "off") return "未启用";
+    const done = gpa.planTasks.filter((task) => task.done).length;
+    return `${gpa.stage} ${done}/${gpa.planTasks.length}`;
+  }
+
+  private startWatchdogIfNeeded(): void {
+    if (this.watchdogIdleTimer) {
+      clearTimeout(this.watchdogIdleTimer);
+      this.watchdogIdleTimer = undefined;
+    }
+    if (this.watchdogTimer) return;
+    this.watchdogReports = [];
+    this.watchdogRound = 0;
+    this.watchdogTurnStartedAt = Date.now();
+    this.recentToolLog = [];
+    this.watchdogTimer = setInterval(() => {
+      void this.runWatchdog();
+    }, WATCHDOG_INTERVAL_MS);
+  }
+
+  private armWatchdogIdleStop(): void {
+    if (this.watchdogIdleTimer) clearTimeout(this.watchdogIdleTimer);
+    this.watchdogIdleTimer = setTimeout(() => {
+      this.watchdogIdleTimer = undefined;
+      const session = this.runtime?.session;
+      if (session?.isStreaming || session?.isCompacting) return;
+      this.stopWatchdog();
+    }, 1500);
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdogIdleTimer) {
+      clearTimeout(this.watchdogIdleTimer);
+      this.watchdogIdleTimer = undefined;
+    }
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = undefined;
+    }
+    this.watchdogAbort?.abort();
+    this.watchdogAbort = undefined;
+  }
+
+  private upsertWatchdogReport(report: WatchdogReport): void {
+    const index = this.watchdogReports.findIndex((item) => item.id === report.id);
+    if (index >= 0) this.watchdogReports[index] = report;
+    else this.watchdogReports = [...this.watchdogReports, report].slice(-5);
+    this.emit({ type: "watchdog", watchdog: report });
+    this.pushSnapshot();
+  }
+
+  private async runWatchdog(): Promise<void> {
+    const session = this.runtime?.session;
+    const model = session?.model;
+    if (!session || !model) return;
+    if (!(session.isStreaming || session.isCompacting)) return;
+    this.watchdogAbort?.abort();
+    const abort = new AbortController();
+    this.watchdogAbort = abort;
+    this.watchdogRound += 1;
+    const report: WatchdogReport = {
+      id: `watchdog-${this.watchdogTurnStartedAt}-${this.watchdogRound}`,
+      round: this.watchdogRound,
+      elapsedMs: Date.now() - this.watchdogTurnStartedAt,
+      status: "running",
+      summary: "正在查询主代理执行情况…",
+      startedAt: Date.now(),
+    };
+    this.upsertWatchdogReport(report);
+    this.emit({
+      type: "toast",
+      toastType: "info",
+      message: `任务已超过 ${Math.round(report.elapsedMs / 60000)} 分钟，正在启动子代理查看进度`,
+    });
+    try {
+      const summary = await runWatchdogSubagent({
+        cwd: this.runtime?.cwd ?? this.cwd,
+        modelRuntime: this.requireModels(),
+        provider: model.provider,
+        modelId: model.id,
+        signal: abort.signal,
+        brief: {
+          cwd: this.runtime?.cwd ?? this.cwd,
+          elapsedMs: report.elapsedMs,
+          round: this.watchdogRound,
+          activity: this.activityLabel,
+          lastUser: this.lastUserText(),
+          gpa: this.gpaBrief(),
+          recentTools: this.recentToolLog,
+        },
+      });
+      if (abort.signal.aborted) return;
+      this.upsertWatchdogReport({ ...report, status: "done", summary });
+    } catch (error) {
+      if (abort.signal.aborted) return;
+      this.upsertWatchdogReport({
+        ...report,
+        status: "failed",
+        summary: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  getResourceFiles(): ResourceFiles {
+    const loader = this.runtime?.services.resourceLoader;
+    if (!loader) return emptyResourceFiles();
+    return {
+      prompts: loader.getPrompts().prompts.map((prompt) =>
+        toResourceFile({
+          kind: "prompt",
+          name: prompt.name,
+          path: prompt.filePath,
+          content: prompt.content,
+          description: prompt.description,
+          argumentHint: prompt.argumentHint,
+          scope: prompt.sourceInfo?.scope,
+        }),
+      ),
+      agentsFiles: loader.getAgentsFiles().agentsFiles.map((file) =>
+        toResourceFile({
+          kind: "agents",
+          name: resourceFileName(file.path, "AGENTS.md"),
+          path: file.path,
+          content: file.content,
+        }),
+      ),
+    };
+  }
+
+  async saveResourceFile(
+    kind: ResourceFile["kind"],
+    path: string,
+    content: string,
+    description?: string,
+  ): Promise<ResourceFiles> {
+    const current = this.getResourceFiles();
+    const allowed = kind === "prompt" ? current.prompts : current.agentsFiles;
+    if (!allowed.some((item) => samePath(item.path, path))) {
+      throw new Error("只能修改当前已加载的模板或上下文文件");
+    }
+    if (kind === "prompt") writePromptTemplateFile(path, content, description);
+    else writeAgentsContextFile(path, content);
+    await this.reloadResourceFiles();
+    return this.getResourceFiles();
+  }
+
+  async createResourceFile(input: CreateResourceFileInput): Promise<ResourceFiles> {
+    createResourceFileOnDisk({
+      ...input,
+      cwd: this.runtime?.cwd,
+    });
+    await this.reloadResourceFiles();
+    return this.getResourceFiles();
+  }
+
+  private async reloadResourceFiles(): Promise<void> {
+    const session = this.runtime?.session;
+    if (session && !session.isStreaming && !session.isCompacting) {
+      await session.reload();
+      await this.attachSession();
+    }
+    this.pushSnapshot();
   }
 }

@@ -49,6 +49,9 @@ declare const api: {
     listDirectory: (relPath?: string) => Promise<any>;
     readFile: (relPath: string) => Promise<any>;
     getCommands: () => Promise<any>;
+    getResourceFiles: () => Promise<any>;
+    saveResourceFile: (kind: "prompt" | "agents", path: string, content: string, description?: string) => Promise<any>;
+    createResourceFile: (input: { kind: "prompt" | "agents"; scope: "user" | "project"; name?: string; description?: string; content?: string }) => Promise<any>;
     getSessionInfo: () => Promise<any>;
     listCatalog: () => Promise<any>;
     refreshCatalog: () => Promise<any>;

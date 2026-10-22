@@ -312,6 +312,18 @@ export const useAppStore = create<AppState>((set) => ({
       }));
       return;
     }
+    if (event.type === "watchdog" && event.watchdog) {
+      const report = event.watchdog;
+      set((state) => {
+        if (!state.snapshot) return state;
+        const reports = state.snapshot.watchdogReports ?? [];
+        const index = reports.findIndex((item) => item.id === report.id);
+        const next =
+          index >= 0 ? reports.map((item, itemIndex) => (itemIndex === index ? report : item)) : [...reports, report];
+        return { snapshot: { ...state.snapshot, watchdogReports: next.slice(-5) } };
+      });
+      return;
+    }
     if (event.type === "queue_update") {
       set((state) => ({
         snapshot: state.snapshot

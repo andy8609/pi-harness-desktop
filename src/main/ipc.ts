@@ -1,5 +1,5 @@
 import { BrowserWindow, app, dialog, ipcMain } from "electron";
-import type { DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, ThinkingLevel } from "@shared/types";
+import type { CreateResourceFileInput, DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, ResourceFile, ThinkingLevel } from "@shared/types";
 import type { AgentHost } from "./agent-host";
 import type { DialogBroker } from "./dialog-broker";
 import { listDirectory, readFileText } from "./fs-panel";
@@ -122,6 +122,15 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   ipcMain.handle("fs:listDir", (_event, relPath?: string) => wrap(() => listDirectory(host.getCwd(), relPath ?? "")));
   ipcMain.handle("fs:readFile", (_event, relPath: string) => wrap(() => readFileText(host.getCwd(), relPath)));
   ipcMain.handle("app:getCommands", () => wrap(() => host.getCommands()));
+  ipcMain.handle("app:getResourceFiles", () => wrap(() => host.getResourceFiles()));
+  ipcMain.handle(
+    "app:saveResourceFile",
+    (_event, kind: ResourceFile["kind"], path: string, content: string, description?: string) =>
+      wrap(() => host.saveResourceFile(kind, path, content, description)),
+  );
+  ipcMain.handle("app:createResourceFile", (_event, input: CreateResourceFileInput) =>
+    wrap(() => host.createResourceFile(input)),
+  );
   ipcMain.handle("app:getSessionInfo", () => wrap(() => host.getSessionInfo()));
   ipcMain.handle("app:listCatalog", () => wrap(() => host.listCatalog()));
   ipcMain.handle("app:refreshCatalog", () => wrap(() => host.refreshCatalog()));

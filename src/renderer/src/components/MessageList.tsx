@@ -9,6 +9,7 @@ import { summarizeTurn, type TurnOperationSummary } from "../lib/tool-summary";
 import { useAppStore } from "../stores/app-store";
 import { ToolActivityGroup, type ToolEntry } from "./ToolActivityGroup";
 import { ToolCallCard } from "./ToolCallCard";
+import { WatchdogFeed } from "./SubagentPanel";
 import { WorkingIndicator } from "./WorkingIndicator";
 
 function joinList(items: string[], limit = 8): string {
@@ -329,6 +330,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
               </article>
             );
           })}
+          <WatchdogFeed className="mt-3" />
           <WorkingIndicator />
         </div>
       </div>

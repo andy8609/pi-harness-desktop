@@ -8,6 +8,8 @@ import type {
   ModelsFile,
   PromptPayload,
   QueueMutation,
+  CreateResourceFileInput,
+  ResourceFile,
   StreamEvent,
   ThinkingLevel,
 } from "@shared/types";
@@ -65,6 +67,10 @@ const api = {
   listDirectory: (relPath?: string) => ipcRenderer.invoke("fs:listDir", relPath),
   readFile: (relPath: string) => ipcRenderer.invoke("fs:readFile", relPath),
   getCommands: () => ipcRenderer.invoke("app:getCommands"),
+  getResourceFiles: () => ipcRenderer.invoke("app:getResourceFiles"),
+  saveResourceFile: (kind: ResourceFile["kind"], path: string, content: string, description?: string) =>
+    ipcRenderer.invoke("app:saveResourceFile", kind, path, content, description),
+  createResourceFile: (input: CreateResourceFileInput) => ipcRenderer.invoke("app:createResourceFile", input),
   getSessionInfo: () => ipcRenderer.invoke("app:getSessionInfo"),
   listCatalog: () => ipcRenderer.invoke("app:listCatalog"),
   refreshCatalog: () => ipcRenderer.invoke("app:refreshCatalog"),

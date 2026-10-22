@@ -108,6 +108,41 @@ export interface ResourceSummary {
   agentsFiles: Array<{ path: string }>;
 }
 
+export interface ResourceFile {
+  kind: "prompt" | "agents";
+  name: string;
+  path: string;
+  description?: string;
+  argumentHint?: string;
+  content: string;
+  scope?: "user" | "project" | "temporary";
+  truncated?: boolean;
+}
+
+export interface ResourceFiles {
+  prompts: ResourceFile[];
+  agentsFiles: ResourceFile[];
+}
+
+export type ResourceCreateScope = "user" | "project";
+
+export interface CreateResourceFileInput {
+  kind: "prompt" | "agents";
+  scope: ResourceCreateScope;
+  name?: string;
+  description?: string;
+  content?: string;
+}
+
+export interface WatchdogReport {
+  id: string;
+  round: number;
+  elapsedMs: number;
+  status: "running" | "done" | "failed";
+  summary: string;
+  startedAt: number;
+}
+
 export interface SessionSnapshot {
   cwd: string;
   sessionId: string;
@@ -129,6 +164,7 @@ export interface SessionSnapshot {
   fullTrust: boolean;
   gpa?: GpaState;
   gpaPlanResume?: GpaPlanResumePreview | null;
+  watchdogReports?: WatchdogReport[];
 }
 
 export interface SessionListItem {
@@ -305,7 +341,8 @@ export interface StreamEvent {
     | "activity"
     | "toast"
     | "snapshot"
-    | "gpa";
+    | "gpa"
+    | "watchdog";
   delta?: string;
   toolCallId?: string;
   toolName?: string;
@@ -320,6 +357,7 @@ export interface StreamEvent {
   elapsed?: number;
   snapshot?: SessionSnapshot;
   gpa?: GpaState;
+  watchdog?: WatchdogReport;
 }
 
 export interface FileSearchResult {

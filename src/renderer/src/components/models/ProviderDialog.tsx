@@ -174,7 +174,7 @@ export function ProviderDialog({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4">
       <div
         role="dialog"
         aria-modal="true"
@@ -200,7 +200,7 @@ export function ProviderDialog({
             </button>
             <button
               type="button"
-              className="rounded-lg bg-[var(--accent)] px-3 py-1 text-xs text-[#16180f] disabled:opacity-50"
+              className="rounded-lg bg-[var(--accent-bg)] px-3 py-1 text-xs text-[var(--on-accent)] disabled:opacity-50"
               disabled={saving}
               onClick={() => void save()}
             >

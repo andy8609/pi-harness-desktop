@@ -46,7 +46,7 @@ export function InlineDialogHost() {
                   type="button"
                   className={`rounded-lg border px-3 py-1.5 text-sm ${
                     option.id === "拒绝"
-                      ? "border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-[#16180f]"
+                      ? "border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-[var(--on-solid)]"
                       : "border-[var(--line)] hover:border-[var(--accent)]"
                   }`}
                   onClick={() => close(false, option.id)}
@@ -80,7 +80,7 @@ export function InlineDialogHost() {
                     type="button"
                     className={`rounded-lg border px-3 py-1.5 text-sm ${
                       selected
-                        ? "border-[#c4d45a] bg-[#c4d45a] text-[#16180f]"
+                        ? "border-[var(--accent-bg-strong)] bg-[var(--accent-bg)] text-[var(--on-accent)]"
                         : "border-[var(--line)] hover:border-[var(--accent)]"
                     }`}
                     onClick={() =>
@@ -113,7 +113,7 @@ export function InlineDialogHost() {
         </button>
         <button
           type="button"
-          className="rounded-lg bg-[#c4d45a] px-3 py-1.5 text-sm text-[#16180f]"
+          className="rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
           onClick={() => {
             const merged: Record<string, string> = {};
             for (const question of questions) {

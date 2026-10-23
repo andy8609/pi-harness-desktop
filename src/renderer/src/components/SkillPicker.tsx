@@ -2,8 +2,15 @@ import { FileArrowUp } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
 
-/** 技能图标底色板（深色主题下保持可读的柔和色） */
-const BADGE_COLORS = ["bg-[#c4d45a]", "bg-[#7eb8c9]", "bg-[#e07a5f]", "bg-[#b48ec9]", "bg-[#8fbf5a]", "bg-[#d9a05b]"];
+/** 技能图标底色板（柔和底色 + 同色深字，两种主题都可读） */
+const BADGE_COLORS = [
+  "bg-[var(--accent-soft)] text-[var(--accent)]",
+  "bg-[var(--info-soft)] text-[var(--info)]",
+  "bg-[var(--danger-soft)] text-[var(--danger)]",
+  "bg-[var(--purple-soft)] text-[var(--purple)]",
+  "bg-[var(--ok-soft)] text-[var(--ok)]",
+  "bg-[var(--warn-soft)] text-[var(--warn)]",
+];
 
 /** 按技能名生成稳定的图标底色与首字符 */
 function skillBadge(name: string): { letter: string; color: string } {
@@ -52,11 +59,11 @@ export function SkillPicker({ onSelect }: { onSelect: (name: string) => void }) 
   };
 
   return (
-    <div className="w-80 rounded-lg border border-[#33392a] bg-[#1a1d16] shadow-xl">
-      <div className="border-b border-[#33392a] p-2">
+    <div className="w-80 rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] shadow-xl">
+      <div className="border-b border-[var(--line)] p-2">
         <input
           autoFocus
-          className="w-full rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-xs text-[#ece7d5] outline-none placeholder:text-[#9a937c] focus:border-[#c4d45a]"
+          className="w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
           placeholder="搜索技能"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -64,7 +71,7 @@ export function SkillPicker({ onSelect }: { onSelect: (name: string) => void }) 
       </div>
       <div className="max-h-64 overflow-y-auto py-1">
         {filtered.length === 0 ? (
-          <div className="px-3 py-2 text-xs text-[#9a937c]">
+          <div className="px-3 py-2 text-xs text-[var(--muted)]">
             {list.length === 0 ? "尚未安装技能" : "无匹配技能"}
           </div>
         ) : (
@@ -75,18 +82,18 @@ export function SkillPicker({ onSelect }: { onSelect: (name: string) => void }) 
                 key={skill.name}
                 type="button"
                 title={`插入 /skill:${skill.name}`}
-                className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-[#22261c]"
+                className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-[var(--bg-raised)]"
                 onClick={() => onSelect(skill.name)}
               >
                 <span
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-[#16180f] ${badge.color}`}
+                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ${badge.color}`}
                 >
                   {badge.letter}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs text-[#ece7d5]">{skill.name}</span>
+                  <span className="block truncate text-xs text-[var(--text)]">{skill.name}</span>
                   {skill.description && (
-                    <span className="block truncate text-[11px] text-[#9a937c]">{skill.description}</span>
+                    <span className="block truncate text-[11px] text-[var(--muted)]">{skill.description}</span>
                   )}
                 </span>
               </button>
@@ -94,23 +101,23 @@ export function SkillPicker({ onSelect }: { onSelect: (name: string) => void }) 
           })
         )}
       </div>
-      <div className="border-t border-[#33392a]">
+      <div className="border-t border-[var(--line)]">
         <button
           type="button"
           disabled={busy}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#ece7d5] hover:bg-[#22261c] disabled:opacity-50"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--text)] hover:bg-[var(--bg-raised)] disabled:opacity-50"
           onClick={() => setImportOpen((value) => !value)}
         >
-          <FileArrowUp size={14} className="shrink-0 text-[#9a937c]" />
+          <FileArrowUp size={14} className="shrink-0 text-[var(--muted)]" />
           导入技能
-          {busy && <span className="text-[11px] text-[#9a937c]">处理中…</span>}
+          {busy && <span className="text-[11px] text-[var(--muted)]">处理中…</span>}
         </button>
         {importOpen && (
           <div className="pb-1">
             <button
               type="button"
               disabled={busy}
-              className="block w-full py-1.5 pr-3 pl-9 text-left text-xs text-[#9a937c] hover:bg-[#22261c] hover:text-[#ece7d5] disabled:opacity-50"
+              className="block w-full py-1.5 pr-3 pl-9 text-left text-xs text-[var(--muted)] hover:bg-[var(--bg-raised)] hover:text-[var(--text)] disabled:opacity-50"
               onClick={() => void importSkill("file")}
             >
               从 SKILL.md 文件导入
@@ -118,7 +125,7 @@ export function SkillPicker({ onSelect }: { onSelect: (name: string) => void }) 
             <button
               type="button"
               disabled={busy}
-              className="block w-full py-1.5 pr-3 pl-9 text-left text-xs text-[#9a937c] hover:bg-[#22261c] hover:text-[#ece7d5] disabled:opacity-50"
+              className="block w-full py-1.5 pr-3 pl-9 text-left text-xs text-[var(--muted)] hover:bg-[var(--bg-raised)] hover:text-[var(--text)] disabled:opacity-50"
               onClick={() => void importSkill("dir")}
             >
               从技能目录导入

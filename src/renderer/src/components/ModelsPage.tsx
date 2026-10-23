@@ -249,7 +249,7 @@ export function ModelsPage() {
           </div>
           <button
             type="button"
-            className="flex items-center gap-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs text-[#16180f]"
+            className="flex items-center gap-1 rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-xs text-[var(--on-accent)]"
             onClick={() => setDialog({ editingId: null })}
           >
             <Plus size={13} />
@@ -267,7 +267,7 @@ export function ModelsPage() {
               </div>
               <button
                 type="button"
-                className="mt-1 flex items-center gap-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs text-[#16180f]"
+                className="mt-1 flex items-center gap-1 rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-xs text-[var(--on-accent)]"
                 onClick={() => setDialog({ editingId: null })}
               >
                 <Plus size={13} />
@@ -354,7 +354,7 @@ export function ModelsPage() {
                         <span
                           className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all ${
                             provider.enabled
-                              ? "left-[18px] bg-[var(--accent)]"
+                              ? "left-[18px] bg-[var(--accent-bg)]"
                               : "left-0.5 bg-[var(--muted)]"
                           }`}
                         />
@@ -388,7 +388,7 @@ export function ModelsPage() {
             />
             <button
               type="button"
-              className="mt-2 rounded bg-[var(--accent)] px-3 py-1 text-sm text-[#16180f]"
+              className="mt-2 rounded bg-[var(--accent-bg)] px-3 py-1 text-sm text-[var(--on-accent)]"
               onClick={() => {
                 try {
                   void save(JSON.parse(raw) as ModelsFile).then(() =>

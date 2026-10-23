@@ -11,6 +11,7 @@ import type {
   CreateResourceFileInput,
   ResourceFile,
   StreamEvent,
+  ThemeMode,
   ThinkingLevel,
 } from "@shared/types";
 
@@ -28,6 +29,9 @@ const api = {
   newSession: () => ipcRenderer.invoke("app:newSession"),
   switchSession: (path: string) => ipcRenderer.invoke("app:switchSession", path),
   listSessions: () => ipcRenderer.invoke("app:listSessions"),
+  deleteSession: (path: string) => ipcRenderer.invoke("app:deleteSession", path),
+  getAppVersion: () => ipcRenderer.invoke("app:getVersion"),
+  setTheme: (theme: ThemeMode) => ipcRenderer.invoke("app:setTheme", theme),
   nameSession: (name: string) => ipcRenderer.invoke("app:nameSession", name),
   fork: (entryId: string) => ipcRenderer.invoke("app:fork", entryId),
   clone: () => ipcRenderer.invoke("app:clone"),

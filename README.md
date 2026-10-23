@@ -35,11 +35,11 @@ Pi Desktop 是一个完全独立的桌面应用，源码不依赖任何 `pi-main
 | 模块 | 能力 |
 | --- | --- |
 | 💬 对话 | 流式输出、Markdown（GFM）渲染、可折叠思考过程、工具调用卡片、bash 执行结果、图片多模态输入 |
-| 🧭 会话 | 会话列表、新建 / 恢复 / 命名、Clone、手动压缩、会话树导航与 fork、`jsonl` / `html` 导入导出 |
+| 🧭 会话 | 会话列表、新建 / 恢复 / 命名 / 删除、Clone、手动压缩、会话树导航与 fork、`jsonl` / `html` 导入导出 |
 | 🧩 扩展 | 浏览 npm 目录（`keywords:pi-package`）、安装 / 卸载、一键启停、更新目录缓存 |
 | ⚡ Skills | 与扩展一致的目录管理，额外支持导入 `SKILL.md` 或本地技能目录 |
 | 🎛️ 模型 | 图形化编辑 `models.json`，支持 OpenAI / Anthropic / Google 兼容接口，可拉取远端模型列表勾选 |
-| ⚙️ 设置 | 默认思考等级、隐藏思考块、自动压缩 / 重试、项目信任策略，与 CLI 共用 `settings.json` |
+| ⚙️ 设置 | 深色 / 浅色 / 跟随系统主题、默认思考等级、隐藏思考块、自动压缩 / 重试、项目信任策略（除主题外与 CLI 共用 `settings.json`） |
 | 🔐 提供商 | 通过 IPC 触发 API Key / OAuth 登录流程，扩展 UI 请求（confirm / input / secret / select）映射为原生对话框 |
 | 📊 状态 | 底部状态栏实时展示运行状态、工作目录、Token 用量、花费、上下文占比、思考等级与当前模型 |
 
@@ -171,7 +171,8 @@ npm run pack:all       # Windows + macOS（需在 macOS 上执行）
 npm run pack:dir       # 只生成免安装目录，便于本地调试
 ```
 
-产物在 `release/`。
+产物在 `release/`。每次执行打包脚本都会先把 `package.json` 的补丁版本号 +1，再用于安装包文件名与应用内显示（设置页标题、侧栏底部）。
+需要手动递增时执行 `npm run version:bump`。
 
 ### 注意事项
 

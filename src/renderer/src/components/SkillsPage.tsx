@@ -76,20 +76,20 @@ export function SkillsPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Skills</h1>
-          <p className="mt-1 text-sm text-[#9a937c]">
+          <p className="mt-1 text-sm text-[var(--muted)]">
             默认读取本地缓存。可点「更新目录」从 npm 重新拉取，或导入本地 SKILL.md / 技能目录。
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            className="rounded border border-[#33392a] px-3 py-1.5 text-sm disabled:opacity-50"
+            className="rounded border border-[var(--line)] px-3 py-1.5 text-sm disabled:opacity-50"
             disabled={busy}
             onClick={() => void run(() => window.pi.importSkillFile(), "已导入本地 Skill 文件")}
           >
             导入 SKILL.md
           </button>
           <button
-            className="rounded border border-[#33392a] px-3 py-1.5 text-sm disabled:opacity-50"
+            className="rounded border border-[var(--line)] px-3 py-1.5 text-sm disabled:opacity-50"
             disabled={busy}
             onClick={() => void run(() => window.pi.importSkillDir(), "已导入本地 Skill 目录")}
           >
@@ -117,9 +117,9 @@ export function SkillsPage() {
         onRefresh={() => void refresh()}
       />
       {loading ? (
-        <div className="text-sm text-[#9a937c]">正在读取本地缓存…</div>
+        <div className="text-sm text-[var(--muted)]">正在读取本地缓存…</div>
       ) : items.length === 0 ? (
-        <div className="text-sm text-[#9a937c]">{refreshing ? "正在从 npm 拉取目录…" : "没有匹配的 Skills，可点「更新目录」从 npm 获取"}</div>
+        <div className="text-sm text-[var(--muted)]">{refreshing ? "正在从 npm 拉取目录…" : "没有匹配的 Skills，可点「更新目录」从 npm 获取"}</div>
       ) : (
         <CatalogGrid
           items={items}

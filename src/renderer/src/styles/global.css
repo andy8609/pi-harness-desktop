@@ -9,14 +9,60 @@
   --line: #33392a;
   --line-strong: #3b4132;
   --text: #ece7d5;
+  --text-soft: #cfc8b0;
   --muted: #9a937c;
   --accent: #c4d45a;
-  --accent-strong: #d7e56a;
+  --accent-bg: #c4d45a;
+  --accent-bg-strong: #d7e56a;
   --accent-soft: rgba(196, 212, 90, 0.16);
+  --accent-line: rgba(196, 212, 90, 0.5);
+  --on-accent: #16180f;
+  --on-solid: #16180f;
   --danger: #e07a5f;
+  --danger-soft: #2a1612;
   --ok: #8fbf7a;
+  --ok-soft: #2a3a22;
+  --info: #7eb8c9;
+  --info-soft: rgba(126, 184, 201, 0.18);
+  --purple: #b48ec9;
+  --purple-soft: rgba(180, 142, 201, 0.18);
+  --warn: #e0a45a;
+  --warn-soft: rgba(224, 164, 90, 0.18);
   --user-bubble: #262b1f;
+  --overlay: rgba(0, 0, 0, 0.6);
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f6f1;
+  --bg-panel: #ffffff;
+  --bg-raised: #f0eee6;
+  --bg-code: #f5f2e8;
+  --line: #e3dfd2;
+  --line-strong: #cec8b6;
+  --text: #262b20;
+  --text-soft: #4a503f;
+  --muted: #716d5c;
+  --accent: #5f7016;
+  --accent-bg: #c9d964;
+  --accent-bg-strong: #b8ca4e;
+  --accent-soft: rgba(95, 112, 22, 0.13);
+  --accent-line: rgba(95, 112, 22, 0.4);
+  --on-accent: #1a1e0c;
+  --on-solid: #ffffff;
+  --danger: #b5502f;
+  --danger-soft: #f8e3da;
+  --ok: #4c7a35;
+  --ok-soft: #e4efd9;
+  --info: #2f6f7d;
+  --info-soft: #e2eff1;
+  --purple: #6f4f8c;
+  --purple-soft: #eee7f5;
+  --warn: #96661c;
+  --warn-soft: #f6ead7;
+  --user-bubble: #ece9dd;
+  --overlay: rgba(20, 18, 10, 0.45);
 }
 
 html,
@@ -37,6 +83,11 @@ textarea,
 input,
 select {
   font: inherit;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
 }
 
 ::-webkit-scrollbar {

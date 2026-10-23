@@ -22,16 +22,16 @@ export function DialogHost() {
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-[#33392a] bg-[#1a1d16] p-5">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--overlay)] p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-[var(--line)] bg-[var(--bg-panel)] p-5">
         <h2 className="mb-2 text-lg font-medium whitespace-pre-wrap">{dialog.title}</h2>
-        {dialog.message && <p className="mb-3 text-sm text-[#9a937c] whitespace-pre-wrap">{dialog.message}</p>}
+        {dialog.message && <p className="mb-3 text-sm text-[var(--muted)] whitespace-pre-wrap">{dialog.message}</p>}
         {dialog.kind === "confirm" && (
           <div className="flex justify-end gap-2">
-            <button className="rounded-lg border border-[#33392a] px-3 py-1.5" onClick={() => close(false, false)}>
+            <button className="rounded-lg border border-[var(--line)] px-3 py-1.5" onClick={() => close(false, false)}>
               取消
             </button>
-            <button className="rounded-lg bg-[#c4d45a] px-3 py-1.5 text-[#16180f]" onClick={() => close(false, true)}>
+            <button className="rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-[var(--on-accent)]" onClick={() => close(false, true)}>
               确认
             </button>
           </div>
@@ -41,7 +41,7 @@ export function DialogHost() {
             <input
               autoFocus
               type={dialog.kind === "secret" ? "password" : "text"}
-              className="mb-3 w-full rounded border border-[#33392a] bg-[#12140f] px-3 py-2"
+              className="mb-3 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
               placeholder={dialog.placeholder}
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -50,10 +50,10 @@ export function DialogHost() {
               }}
             />
             <div className="flex justify-end gap-2">
-              <button className="rounded-lg border border-[#33392a] px-3 py-1.5" onClick={() => close(true)}>
+              <button className="rounded-lg border border-[var(--line)] px-3 py-1.5" onClick={() => close(true)}>
                 取消
               </button>
-              <button className="rounded-lg bg-[#c4d45a] px-3 py-1.5 text-[#16180f]" onClick={() => close(false, value)}>
+              <button className="rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-[var(--on-accent)]" onClick={() => close(false, value)}>
                 确定
               </button>
             </div>
@@ -64,14 +64,14 @@ export function DialogHost() {
             {(dialog.options ?? []).map((option) => (
               <button
                 key={option.id}
-                className="block w-full rounded-lg border border-[#33392a] px-3 py-2 text-left hover:border-[#c4d45a]"
+                className="block w-full rounded-lg border border-[var(--line)] px-3 py-2 text-left hover:border-[var(--accent)]"
                 onClick={() => close(false, option.id)}
               >
                 <div>{option.label}</div>
-                {option.description && <div className="text-xs text-[#9a937c]">{option.description}</div>}
+                {option.description && <div className="text-xs text-[var(--muted)]">{option.description}</div>}
               </button>
             ))}
-            <button className="mt-2 text-sm text-[#9a937c]" onClick={() => close(true)}>
+            <button className="mt-2 text-sm text-[var(--muted)]" onClick={() => close(true)}>
               取消
             </button>
           </div>

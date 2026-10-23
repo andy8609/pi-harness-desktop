@@ -14,10 +14,12 @@ import type {
   SlashCommand,
   StreamEvent,
   ThinkingLevel,
+  ThemeMode,
   TreeNode,
   WorkPanelState,
 } from "@shared/types";
 import { activityLabel, polishActivity } from "../lib/tool-summary";
+import { applyTheme, loadThemeMode, saveThemeMode } from "../lib/theme";
 
 let lastTool: { name?: string; args?: unknown } = {};
 
@@ -63,6 +65,8 @@ interface AppState {
   providers: ProviderOption[];
   modelsFile?: { path: string; file: ModelsFile; raw: string; error?: string };
   settings: DesktopSettings;
+  appVersion: string;
+  theme: ThemeMode;
   commands: SlashCommand[];
   tree: TreeNode[];
   files: FileSearchResult[];
@@ -84,6 +88,7 @@ interface AppState {
   setWorkPanel: (patch: Partial<WorkPanelState>) => void;
   toggleWorkPanel: () => void;
   setView: (view: AppView) => void;
+  setTheme: (theme: ThemeMode) => void;
   applySnapshot: (snapshot?: SessionSnapshot | null) => void;
   handleEvent: (event: StreamEvent) => void;
   setDialog: (dialog?: DialogRequest) => void;
@@ -165,6 +170,8 @@ export const useAppStore = create<AppState>((set) => ({
   models: [],
   providers: [],
   settings: {},
+  appVersion: "",
+  theme: loadThemeMode(),
   commands: [],
   tree: [],
   files: [],
@@ -200,6 +207,11 @@ export const useAppStore = create<AppState>((set) => ({
       return { workPanel: next };
     }),
   setView: (view) => set({ view }),
+  setTheme: (theme) => {
+    saveThemeMode(theme);
+    applyTheme(theme);
+    set({ theme });
+  },
   applySnapshot: (snapshot) =>
     set({
       snapshot: snapshot ?? undefined,
@@ -373,12 +385,14 @@ export async function bootstrapApp(): Promise<void> {
     window.pi.getSettings().catch(() => ({})),
     window.pi.getCommands().catch(() => []),
   ]);
+  const appVersion = await window.pi.getAppVersion().catch(() => "");
   useAppStore.setState({
     sessions,
     models: modelLists.models,
     providers: modelLists.providers,
     settings,
     commands,
+    appVersion,
   });
 }
 

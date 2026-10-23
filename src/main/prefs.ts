@@ -1,10 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { app } from "electron";
+import type { ThemeMode } from "../shared/types";
 
 export interface DesktopPrefs {
   lastCwd?: string;
   windowBounds?: { x?: number; y?: number; width: number; height: number };
+  /** 桌面界面皮肤，用于首帧窗口背景与原生控件主题。 */
+  theme?: ThemeMode;
 }
 
 function prefsPath(): string {

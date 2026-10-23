@@ -126,40 +126,40 @@ export function SessionTree({
   }, [nodes]);
 
   if (nodes.length === 0) {
-    return <div className="text-sm text-[#9a937c]">打开项目后可查看当前会话树。</div>;
+    return <div className="text-sm text-[var(--muted)]">打开项目后可查看当前会话树。</div>;
   }
 
   return (
-    <div className="rounded-xl border border-[#33392a] bg-[#1a1d16] p-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--bg-panel)] p-3">
       <div className="mb-3 flex flex-wrap items-center gap-1">
         {FILTERS.map((filter) => (
           <button
             key={filter.id}
             className={`rounded px-2 py-0.5 text-xs ${
-              mode === filter.id ? "bg-[#c4d45a] text-[#16180f]" : "border border-[#33392a] text-[#cfc8b0]"
+              mode === filter.id ? "bg-[var(--accent-bg)] text-[var(--on-accent)]" : "border border-[var(--line)] text-[var(--text-soft)]"
             }`}
             onClick={() => setMode(filter.id)}
           >
             {filter.label}
           </button>
         ))}
-        <span className="mx-1 h-3 w-px bg-[#33392a]" />
+        <span className="mx-1 h-3 w-px bg-[var(--line)]" />
         <button
-          className="rounded border border-[#33392a] px-2 py-0.5 text-xs text-[#cfc8b0]"
+          className="rounded border border-[var(--line)] px-2 py-0.5 text-xs text-[var(--text-soft)]"
           onClick={() => setCollapsed(new Set())}
         >
           全部展开
         </button>
         <button
-          className="rounded border border-[#33392a] px-2 py-0.5 text-xs text-[#cfc8b0]"
+          className="rounded border border-[var(--line)] px-2 py-0.5 text-xs text-[var(--text-soft)]"
           onClick={() => setCollapsed(new Set(branchIds))}
         >
           全部折叠
         </button>
-        <span className="ml-auto text-[10px] text-[#9a937c]">{rows.length} 个节点</span>
+        <span className="ml-auto text-[10px] text-[var(--muted)]">{rows.length} 个节点</span>
       </div>
       {forest.length === 0 ? (
-        <div className="text-sm text-[#9a937c]">该筛选下没有节点。可切换到「全部」查看记账条目。</div>
+        <div className="text-sm text-[var(--muted)]">该筛选下没有节点。可切换到「全部」查看记账条目。</div>
       ) : (
         <div>
           {rows.map(({ node, depth, isBranch }) => {
@@ -168,12 +168,12 @@ export function SessionTree({
             return (
               <div
                 key={node.id}
-                className={`mb-0.5 flex items-start gap-1 rounded-md px-1 py-1 ${selected ? "bg-[#22261c]" : ""}`}
+                className={`mb-0.5 flex items-start gap-1 rounded-md px-1 py-1 ${selected ? "bg-[var(--bg-raised)]" : ""}`}
                 style={{ paddingLeft: 4 + depth * 14 }}
               >
                 {isBranch ? (
                   <button
-                    className="mt-0.5 shrink-0 text-[#9a937c] hover:text-[#c4d45a]"
+                    className="mt-0.5 shrink-0 text-[var(--muted)] hover:text-[var(--accent)]"
                     title={isCollapsed ? "展开旁支" : "折叠旁支"}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -191,16 +191,16 @@ export function SessionTree({
                   <span className="mt-0.5 inline-block w-3 shrink-0" />
                 )}
                 <button
-                  className={`min-w-0 flex-1 text-left text-sm hover:text-[#c4d45a] ${selected ? "text-[#c4d45a]" : ""}`}
+                  className={`min-w-0 flex-1 text-left text-sm hover:text-[var(--accent)] ${selected ? "text-[var(--accent)]" : ""}`}
                   onClick={() => setSelectedId(node.id)}
                   onDoubleClick={() => onNavigate(node.id)}
                 >
-                  <div className="text-[11px] text-[#9a937c]">{node.type}</div>
+                  <div className="text-[11px] text-[var(--muted)]">{node.type}</div>
                   <div className="break-words">{node.label || node.summary}</div>
                 </button>
                 {isUserNode(node) && (
                   <button
-                    className="shrink-0 text-xs text-[#c4d45a]"
+                    className="shrink-0 text-xs text-[var(--accent)]"
                     onClick={(event) => {
                       event.stopPropagation();
                       onFork(node.id);
@@ -211,7 +211,7 @@ export function SessionTree({
                 )}
                 {selected && (
                   <button
-                    className="shrink-0 text-xs text-[#c4d45a]"
+                    className="shrink-0 text-xs text-[var(--accent)]"
                     onClick={(event) => {
                       event.stopPropagation();
                       onNavigate(node.id);

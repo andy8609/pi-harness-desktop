@@ -282,6 +282,9 @@ export interface DesktopSettings {
   theme?: string;
 }
 
+/** 桌面界面皮肤：深色 / 浅色 / 跟随系统。与 pi CLI 的 settings.theme 无关。 */
+export type ThemeMode = "dark" | "light" | "system";
+
 export interface SlashCommand {
   name: string;
   description?: string;

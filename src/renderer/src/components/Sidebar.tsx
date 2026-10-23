@@ -20,15 +20,16 @@ export function Sidebar() {
   const pushToast = useAppStore((state) => state.pushToast);
   const workPanelOpen = useAppStore((state) => state.workPanel.open);
   const toggleWorkPanel = useAppStore((state) => state.toggleWorkPanel);
+  const appVersion = useAppStore((state) => state.appVersion);
 
   return (
-    <aside className="flex w-[232px] shrink-0 flex-col border-r border-[#33392a] bg-[#1a1d16]">
+    <aside className="flex w-[232px] shrink-0 flex-col border-r border-[var(--line)] bg-[var(--bg-panel)]">
       <div className="px-4 pb-3 pt-5">
-        <div className="text-[11px] tracking-[0.18em] text-[#9a937c]">PI DESKTOP</div>
-        <div className="mt-1 text-lg font-semibold text-[#ece7d5]">工作台</div>
+        <div className="text-[11px] tracking-[0.18em] text-[var(--muted)]">PI DESKTOP</div>
+        <div className="mt-1 text-lg font-semibold text-[var(--text)]">工作台</div>
       </div>
       <button
-        className="mx-3 mb-3 flex items-center gap-2 rounded-lg border border-[#33392a] bg-[#22261c] px-3 py-2 text-left text-sm text-[#ece7d5] hover:border-[#c4d45a]"
+        className="mx-3 mb-3 flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg-raised)] px-3 py-2 text-left text-sm text-[var(--text)] hover:border-[var(--accent)]"
         onClick={async () => {
           try {
             const snapshot = await window.pi.openDirectory();
@@ -53,7 +54,7 @@ export function Sidebar() {
             <button
               key={item.id}
               className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                active ? "bg-[#c4d45a] text-[#16180f]" : "text-[#ece7d5] hover:bg-[#22261c]"
+                active ? "bg-[var(--accent-bg)] text-[var(--on-accent)]" : "text-[var(--text)] hover:bg-[var(--bg-raised)]"
               }`}
               onClick={() => setView(item.id)}
             >
@@ -70,12 +71,13 @@ export function Sidebar() {
         <SidebarSimple size={16} />
         {workPanelOpen ? "收起工作区" : "打开工作区"}
       </button>
-      <div className="border-t border-[#33392a] px-4 py-3 text-xs text-[#9a937c]">
+      <div className="border-t border-[var(--line)] px-4 py-3 text-xs text-[var(--muted)]">
         <div>会话 {snapshot?.displayName || snapshot?.sessionName || snapshot?.sessionId.slice(0, 8) || "-"}</div>
         <div className="mt-1 truncate">{snapshot?.model ? `${snapshot.model.provider}/${snapshot.model.id}` : "未选择模型"}</div>
         <div className="mt-1">
           扩展 {snapshot?.resources.extensions.length ?? 0} · Skills {snapshot?.resources.skills.length ?? 0}
         </div>
+        {appVersion && <div className="mt-1 text-[var(--muted)]">v{appVersion}</div>}
       </div>
     </aside>
   );

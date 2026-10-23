@@ -1,4 +1,4 @@
-import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThinkingLevel } from "@shared/types";
+import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThemeMode, ThinkingLevel } from "@shared/types";
 declare const api: {
     getState: () => Promise<any>;
     openDirectory: () => Promise<any>;
@@ -12,6 +12,9 @@ declare const api: {
     newSession: () => Promise<any>;
     switchSession: (path: string) => Promise<any>;
     listSessions: () => Promise<any>;
+    deleteSession: (path: string) => Promise<any>;
+    getAppVersion: () => Promise<string>;
+    setTheme: (theme: ThemeMode) => Promise<ThemeMode>;
     nameSession: (name: string) => Promise<any>;
     fork: (entryId: string) => Promise<any>;
     clone: () => Promise<any>;

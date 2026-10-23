@@ -28,22 +28,22 @@ export function CatalogCard({
   onRemove: (source: string) => void;
 }) {
   return (
-    <div className="rounded-xl border border-[#33392a] bg-[#1a1d16] p-4">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--bg-panel)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-medium">{item.name}</div>
-          <div className="mt-1 text-xs text-[#9a937c]">
+          <div className="mt-1 text-xs text-[var(--muted)]">
             v{item.version || "-"}
             {item.kinds.includes("skill") && item.kinds.includes("extension") ? " · 扩展 / Skill" : ""}
           </div>
-          <p className="mt-2 text-sm text-[#cfc8b0]">{item.description || "暂无描述"}</p>
+          <p className="mt-2 text-sm text-[var(--text-soft)]">{item.description || "暂无描述"}</p>
           {item.keywords.filter((keyword) => keyword.toLowerCase() !== "pi-package").length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {item.keywords
                 .filter((keyword) => keyword.toLowerCase() !== "pi-package")
                 .slice(0, 6)
                 .map((keyword) => (
-                  <span key={keyword} className="rounded bg-[#22261c] px-1.5 py-0.5 text-[10px] text-[#9a937c]">
+                  <span key={keyword} className="rounded bg-[var(--bg-raised)] px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
                     {keyword}
                   </span>
                 ))}
@@ -53,14 +53,14 @@ export function CatalogCard({
             href={item.npmUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-block text-xs text-[#c4d45a] hover:underline"
+            className="mt-2 inline-block text-xs text-[var(--accent)] hover:underline"
           >
             在 npm 查看 →
           </a>
         </div>
         {installedSource ? (
           <button
-            className="shrink-0 rounded border border-[#33392a] px-3 py-1 text-xs disabled:opacity-50"
+            className="shrink-0 rounded border border-[var(--line)] px-3 py-1 text-xs disabled:opacity-50"
             disabled={busy}
             onClick={() => onRemove(installedSource)}
           >
@@ -68,7 +68,7 @@ export function CatalogCard({
           </button>
         ) : (
           <button
-            className="shrink-0 rounded bg-[#c4d45a] px-3 py-1 text-xs text-[#16180f] disabled:opacity-50"
+            className="shrink-0 rounded bg-[var(--accent-bg)] px-3 py-1 text-xs text-[var(--on-accent)] disabled:opacity-50"
             disabled={busy}
             onClick={() => onInstall(item.name)}
           >
@@ -92,10 +92,10 @@ export function InstalledToggleList({
   onToggle: (item: InstalledResource, enabled: boolean) => void;
 }) {
   return (
-    <div className="rounded-xl border border-[#33392a] bg-[#1a1d16] p-4">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--bg-panel)] p-4">
       <h2 className="mb-3 font-medium">{title}</h2>
       {items.length === 0 ? (
-        <div className="text-sm text-[#9a937c]">暂无已解析资源</div>
+        <div className="text-sm text-[var(--muted)]">暂无已解析资源</div>
       ) : (
         <ul className="space-y-2">
           {items.map((item) => (
@@ -109,7 +109,7 @@ export function InstalledToggleList({
                 />
                 <span className="truncate">{item.name}</span>
               </label>
-              <span className="shrink-0 text-xs text-[#9a937c]">
+              <span className="shrink-0 text-xs text-[var(--muted)]">
                 {item.origin === "package" ? item.source : item.scope === "user" ? "用户" : "项目"}
               </span>
             </li>
@@ -161,7 +161,7 @@ export function CatalogGrid({
         />
       ))}
       {visible < items.length && (
-        <button className="rounded border border-[#33392a] px-3 py-2 text-sm" onClick={() => setVisible((count) => count + 40)}>
+        <button className="rounded border border-[var(--line)] px-3 py-2 text-sm" onClick={() => setVisible((count) => count + 40)}>
           显示更多（还有 {items.length - visible}）
         </button>
       )}
@@ -190,19 +190,19 @@ export function CatalogToolbar({
     <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 className="font-medium">官网目录（{count}）</h2>
-        <div className="text-xs text-[#9a937c]">
+        <div className="text-xs text-[var(--muted)]">
           {updatedAt ? `缓存于 ${new Date(updatedAt).toLocaleString()}` : "尚无本地缓存"}
         </div>
       </div>
       <div className="flex items-center gap-2">
         <input
-          className="w-52 rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-sm"
+          className="w-52 rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-sm"
           placeholder={placeholder}
           value={query}
           onChange={(event) => onQuery(event.target.value)}
         />
         <button
-          className="rounded border border-[#33392a] px-3 py-1 text-sm disabled:opacity-50"
+          className="rounded border border-[var(--line)] px-3 py-1 text-sm disabled:opacity-50"
           disabled={refreshing}
           onClick={onRefresh}
         >

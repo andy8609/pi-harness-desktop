@@ -16,7 +16,7 @@ export function StatusBar() {
   const activity = useAppStore((state) => state.activity);
   if (!snapshot) {
     return (
-      <footer className="flex h-8 items-center border-t border-[#33392a] bg-[#1a1d16] px-3 text-xs text-[#9a937c]">
+      <footer className="flex h-8 items-center border-t border-[var(--line)] bg-[var(--bg-panel)] px-3 text-xs text-[var(--muted)]">
         打开项目目录后开始对话。配置与会话保存在 ~/.pi/agent
       </footer>
     );
@@ -30,13 +30,13 @@ export function StatusBar() {
         : "";
   const thinking = THINKING_LEVEL_LABEL[snapshot.thinkingLevel] ?? snapshot.thinkingLevel;
   return (
-    <footer className="flex h-8 items-center justify-between gap-3 border-t border-[#33392a] bg-[#1a1d16] px-3 text-xs text-[#9a937c]">
+    <footer className="flex h-8 items-center justify-between gap-3 border-t border-[var(--line)] bg-[var(--bg-panel)] px-3 text-xs text-[var(--muted)]">
       <div className="flex min-w-0 items-center gap-3">
-        <span className={`flex items-center gap-1.5 ${busy ? "text-[#c4d45a]" : ""}`}>
+        <span className={`flex items-center gap-1.5 ${busy ? "text-[var(--accent)]" : ""}`}>
           {busy && <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" />}
           {busy ? activity?.message || "运行中" : "就绪"}
           {busy && activity?.elapsed != null && activity.elapsed >= 2000 && (
-            <span className="text-[#9a937c]">{formatElapsed(Math.floor(activity.elapsed / 1000))}</span>
+            <span className="text-[var(--muted)]">{formatElapsed(Math.floor(activity.elapsed / 1000))}</span>
           )}
         </span>
         <span className="truncate">{snapshot.cwd}</span>

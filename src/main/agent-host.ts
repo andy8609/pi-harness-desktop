@@ -1,4 +1,5 @@
 import { copyFileSync, existsSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { shell } from "electron";
@@ -1042,6 +1043,25 @@ export class AgentHost {
       messageCount: info.messageCount,
       firstMessage: info.firstMessage,
     }));
+  }
+
+  /**
+   * Delete a historical session file. Only paths that appear in the current
+   * project's session list are accepted, so this cannot be used to remove
+   * arbitrary files. Deleting the active session first switches to a fresh
+   * session so the runtime never keeps appending to a deleted file.
+   */
+  async deleteSession(path: string): Promise<void> {
+    const cwd = this.runtime?.cwd ?? this.cwd;
+    const sessions = await SessionManager.list(cwd);
+    if (!sessions.some((info) => samePath(info.path, path))) {
+      throw new Error("会话不存在或不属于当前项目");
+    }
+    const current = this.runtime?.session?.sessionManager.getSessionFile();
+    if (current && samePath(current, path)) {
+      await this.newSession();
+    }
+    await rm(path, { force: true });
   }
 
   nameSession(name: string): void {

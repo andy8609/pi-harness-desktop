@@ -16,16 +16,16 @@ function kindIcon(kind: ToolKind): ReactNode {
 function DiffView({ diff }: { diff: string }) {
   const lines = diff.replace(/\r\n/g, "\n").split("\n");
   return (
-    <pre className="max-h-72 overflow-auto border-t border-[#33392a] px-3 py-2 text-[11px] leading-5">
+    <pre className="max-h-72 overflow-auto border-t border-[var(--line)] px-3 py-2 text-[11px] leading-5">
       {lines.map((line, index) => {
         const color =
           line.startsWith("+") && !line.startsWith("+++")
-            ? "text-[#8fbf5a]"
+            ? "text-[var(--ok)]"
             : line.startsWith("-") && !line.startsWith("---")
-              ? "text-[#e07a5f]"
+              ? "text-[var(--danger)]"
               : line.startsWith("@@")
-                ? "text-[#7eb8c9]"
-                : "text-[#ece7d5]";
+                ? "text-[var(--info)]"
+                : "text-[var(--text)]";
         return (
           <div key={`${index}-${line.slice(0, 24)}`} className={color}>
             {line || " "}
@@ -38,8 +38,8 @@ function DiffView({ diff }: { diff: string }) {
 
 function PreviewBlock({ text, tone }: { text: string; tone?: "error" | "muted" }) {
   if (!text) return null;
-  const color = tone === "error" ? "text-[#e07a5f]" : tone === "muted" ? "text-[#cfc8b0]" : "text-[#ece7d5]";
-  return <pre className={`max-h-72 overflow-auto border-t border-[#33392a] px-3 py-2 text-[11px] leading-5 ${color}`}>{text}</pre>;
+  const color = tone === "error" ? "text-[var(--danger)]" : tone === "muted" ? "text-[var(--text-soft)]" : "text-[var(--text)]";
+  return <pre className={`max-h-72 overflow-auto border-t border-[var(--line)] px-3 py-2 text-[11px] leading-5 ${color}`}>{text}</pre>;
 }
 
 function readableFallback(value: unknown): string {
@@ -88,7 +88,7 @@ export function ToolCallCard({
       body = (
         <>
           {command ? (
-            <div className="border-t border-[#33392a] px-3 py-2 font-mono text-[11px] text-[#c4d45a]">{command}</div>
+            <div className="border-t border-[var(--line)] px-3 py-2 font-mono text-[11px] text-[var(--accent)]">{command}</div>
           ) : null}
           <PreviewBlock text={resultText} tone={isError ? "error" : undefined} />
         </>
@@ -110,16 +110,16 @@ export function ToolCallCard({
   }
 
   return (
-    <div className={`mt-2 rounded-lg border ${isError ? "border-[#e07a5f]" : "border-[#33392a]"} bg-[#10130d]`}>
-      <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[#c4d45a]" onClick={() => setOpen((value) => !value)}>
+    <div className={`mt-2 rounded-lg border ${isError ? "border-[var(--danger)]" : "border-[var(--line)]"} bg-[var(--bg-code)]`}>
+      <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--accent)]" onClick={() => setOpen((value) => !value)}>
         {open ? <CaretDown size={12} className="shrink-0" /> : <CaretRight size={12} className="shrink-0" />}
-        {pending && <span className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border border-[#c4d45a] border-t-transparent" />}
+        {pending && <span className="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border border-[var(--accent)] border-t-transparent" />}
         {kindIcon(summary.kind)}
         <span className="min-w-0 flex-1 truncate">{summary.title}</span>
         {result !== undefined ? (
-          <span className="shrink-0 text-[#9a937c]">{isError ? "失败" : "完成"}</span>
+          <span className="shrink-0 text-[var(--muted)]">{isError ? "失败" : "完成"}</span>
         ) : pending ? (
-          <span className="shrink-0 text-[#9a937c]">进行中</span>
+          <span className="shrink-0 text-[var(--muted)]">进行中</span>
         ) : null}
       </button>
       {body}

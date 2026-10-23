@@ -124,21 +124,21 @@ function MenuSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled}
-        className="flex max-w-full items-center gap-1 rounded-lg border border-[#33392a] bg-[#12140f] px-2 py-1.5 text-xs disabled:opacity-50"
+        className="flex max-w-full items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 text-xs disabled:opacity-50"
         onClick={() => setOpen((current) => !current)}
       >
         <span className="min-w-0 flex-1 truncate">{label || "选择"}</span>
-        <CaretDown size={11} className="shrink-0 text-[#9a937c]" />
+        <CaretDown size={11} className="shrink-0 text-[var(--muted)]" />
       </button>
       {open && (
         <div
           role="listbox"
-          className={`absolute right-0 z-40 max-h-72 min-w-full overflow-auto rounded-lg border border-[#33392a] bg-[#1a1d16] py-1 shadow-xl ${
+          className={`absolute right-0 z-40 max-h-72 min-w-full overflow-auto rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] py-1 shadow-xl ${
             placement === "up" ? "bottom-full mb-1" : "mt-1"
           }`}
         >
           {options.length === 0 ? (
-            <div className="px-3 py-1.5 text-xs text-[#9a937c]">无可选项</div>
+            <div className="px-3 py-1.5 text-xs text-[var(--muted)]">无可选项</div>
           ) : (
             options.map((option) => {
               const selected = option.value === value;
@@ -148,8 +148,8 @@ function MenuSelect({
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[#22261c] ${
-                    selected ? "text-[#c4d45a]" : "text-[#ece7d5]"
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[var(--bg-raised)] ${
+                    selected ? "text-[var(--accent)]" : "text-[var(--text)]"
                   }`}
                   onClick={() => {
                     setOpen(false);

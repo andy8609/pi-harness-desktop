@@ -74,7 +74,7 @@ export function ExtensionsPage() {
   return (
     <section className="h-full overflow-auto px-6 py-5">
       <h1 className="text-xl font-semibold">扩展</h1>
-      <p className="mt-1 mb-6 text-sm text-[#9a937c]">
+      <p className="mt-1 mb-6 text-sm text-[var(--muted)]">
         默认读取本地缓存。需要最新列表时点「更新目录」，会从 npm `keywords:pi-package` 重新分页拉取。安装到 ~/.pi/agent，与 CLI `pi install` 一致。
       </p>
 
@@ -97,9 +97,9 @@ export function ExtensionsPage() {
         onRefresh={() => void refresh()}
       />
       {loading ? (
-        <div className="text-sm text-[#9a937c]">正在读取本地缓存…</div>
+        <div className="text-sm text-[var(--muted)]">正在读取本地缓存…</div>
       ) : items.length === 0 ? (
-        <div className="text-sm text-[#9a937c]">{refreshing ? "正在从 npm 拉取目录…" : "没有匹配的扩展，可点「更新目录」从 npm 获取"}</div>
+        <div className="text-sm text-[var(--muted)]">{refreshing ? "正在从 npm 拉取目录…" : "没有匹配的扩展，可点「更新目录」从 npm 获取"}</div>
       ) : (
         <CatalogGrid
           items={items}

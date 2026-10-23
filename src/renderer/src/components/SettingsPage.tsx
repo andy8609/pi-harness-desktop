@@ -1,10 +1,20 @@
+import { Monitor, Moon, Sun } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import type { DesktopSettings, ResourceCreateScope, ResourceFile, ResourceFiles } from "@shared/types";
+import type { DesktopSettings, ResourceCreateScope, ResourceFile, ResourceFiles, ThemeMode } from "@shared/types";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+
+const THEME_OPTIONS: Array<{ id: ThemeMode; label: string; note: string; icon: typeof Sun }> = [
+  { id: "dark", label: "深色", note: "固定使用深色界面", icon: Moon },
+  { id: "light", label: "浅色", note: "固定使用浅色界面", icon: Sun },
+  { id: "system", label: "跟随系统", note: "随操作系统外观自动切换", icon: Monitor },
+];
 
 export function SettingsPage() {
   const snapshot = useAppStore((state) => state.snapshot);
   const settings = useAppStore((state) => state.settings);
+  const theme = useAppStore((state) => state.theme);
+  const setTheme = useAppStore((state) => state.setTheme);
+  const appVersion = useAppStore((state) => state.appVersion);
   const [draft, setDraft] = useState<DesktopSettings>(settings);
   const [rules, setRules] = useState<string[]>([]);
   const [resourceFiles, setResourceFiles] = useState<ResourceFiles>({ prompts: [], agentsFiles: [] });
@@ -30,8 +40,43 @@ export function SettingsPage() {
 
   return (
     <section className="h-full overflow-auto px-6 py-5">
-      <h1 className="text-xl font-semibold">设置</h1>
-      <p className="mt-1 mb-6 text-sm text-[#9a937c]">这些项写入 ~/.pi/agent/settings.json，与 CLI 共用。</p>
+      <h1 className="text-xl font-semibold">
+        设置
+        {appVersion && (
+          <span className="ml-2 rounded border border-[var(--line)] px-1.5 py-0.5 align-middle text-xs font-normal text-[var(--muted)]">
+            v{appVersion}
+          </span>
+        )}
+      </h1>
+      <p className="mt-1 mb-6 text-sm text-[var(--muted)]">外观仅保存在桌面端；下方设置写入 ~/.pi/agent/settings.json，与 CLI 共用。</p>
+
+      <div className="mb-6">
+        <h2 className="mb-2 font-medium">外观</h2>
+        <div className="mb-2 text-xs text-[var(--muted)]">仅影响桌面界面外观，不会修改 pi CLI 的主题设置。</div>
+        <div className="inline-flex max-w-xl flex-wrap items-center gap-1 rounded-xl border border-[var(--line)] bg-[var(--bg-raised)] p-1">
+          {THEME_OPTIONS.map((option) => {
+            const active = theme === option.id;
+            const Icon = option.icon;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                title={option.note}
+                aria-pressed={active}
+                className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm transition-colors ${
+                  active
+                    ? "bg-[var(--accent-bg)] font-medium text-[var(--on-accent)] shadow-sm"
+                    : "text-[var(--text-soft)] hover:bg-[var(--bg-panel)] hover:text-[var(--text)]"
+                }`}
+                onClick={() => setTheme(option.id)}
+              >
+                <Icon size={15} weight={active ? "fill" : "regular"} />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="mb-6 grid max-w-xl gap-3">
         <label className="flex items-center gap-2 text-sm">
@@ -59,7 +104,7 @@ export function SettingsPage() {
           自动重试
         </label>
         <button
-          className="w-fit rounded-lg bg-[#c4d45a] px-3 py-1.5 text-sm text-[#16180f]"
+          className="w-fit rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
           onClick={async () => {
             await window.pi.updateSettings(draft);
             await refreshModelsAndSessions();
@@ -72,15 +117,15 @@ export function SettingsPage() {
 
       <div className="mb-6">
         <h2 className="mb-2 font-medium">项目信任</h2>
-        <div className="mb-2 text-sm text-[#9a937c]">当前：{snapshot?.projectTrusted ? "已信任" : "未信任"}</div>
+        <div className="mb-2 text-sm text-[var(--muted)]">当前：{snapshot?.projectTrusted ? "已信任" : "未信任"}</div>
         <div className="flex gap-2">
-          <button className="rounded border border-[#33392a] px-3 py-1 text-sm" onClick={() => window.pi.trustProject(true)}>
+          <button className="rounded border border-[var(--line)] px-3 py-1 text-sm" onClick={() => window.pi.trustProject(true)}>
             信任此目录
           </button>
-          <button className="rounded border border-[#33392a] px-3 py-1 text-sm" onClick={() => window.pi.trustProject(true, true)}>
+          <button className="rounded border border-[var(--line)] px-3 py-1 text-sm" onClick={() => window.pi.trustProject(true, true)}>
             信任父目录
           </button>
-          <button className="rounded border border-[#33392a] px-3 py-1 text-sm" onClick={() => window.pi.trustProject(false)}>
+          <button className="rounded border border-[var(--line)] px-3 py-1 text-sm" onClick={() => window.pi.trustProject(false)}>
             取消信任
           </button>
         </div>
@@ -88,21 +133,21 @@ export function SettingsPage() {
 
       <div className="mb-6">
         <h2 className="mb-2 font-medium">已记住的权限规则</h2>
-        <p className="mb-2 text-xs text-[#9a937c]">
+        <p className="mb-2 text-xs text-[var(--muted)]">
           「始终允许」的高风险命令保存在 ~/.pi/agent/desktop-permissions.json。
         </p>
         {rules.length === 0 ? (
-          <div className="text-sm text-[#9a937c]">暂无</div>
+          <div className="text-sm text-[var(--muted)]">暂无</div>
         ) : (
           <ul className="max-w-2xl space-y-1">
             {rules.map((rule) => (
               <li
                 key={rule}
-                className="flex items-center justify-between gap-2 rounded border border-[#33392a] px-2 py-1 text-xs"
+                className="flex items-center justify-between gap-2 rounded border border-[var(--line)] px-2 py-1 text-xs"
               >
                 <span className="min-w-0 flex-1 truncate font-mono">{rule}</span>
                 <button
-                  className="shrink-0 text-[#e07a5f]"
+                  className="shrink-0 text-[var(--danger)]"
                   onClick={async () => {
                     const next = (await window.pi.forgetPermissionRule(rule)) as string[];
                     setRules(next);
@@ -116,7 +161,7 @@ export function SettingsPage() {
         )}
         {rules.length > 0 && (
           <button
-            className="mt-2 rounded border border-[#33392a] px-2 py-1 text-xs"
+            className="mt-2 rounded border border-[var(--line)] px-2 py-1 text-xs"
             onClick={async () => setRules((await window.pi.clearPermissionRules()) as string[])}
           >
             全部清除
@@ -205,12 +250,12 @@ function ResourceEditor({
   };
 
   return (
-    <div className="rounded-xl border border-[#33392a] bg-[#1a1d16] p-4">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--bg-panel)] p-4">
       <div className="mb-1 flex items-center justify-between gap-2">
         <h3 className="font-medium">{title}</h3>
         <button
           type="button"
-          className="rounded border border-[#33392a] px-2 py-0.5 text-xs text-[#c4d45a] hover:border-[#c4d45a] disabled:opacity-50"
+          className="rounded border border-[var(--line)] px-2 py-0.5 text-xs text-[var(--accent)] hover:border-[var(--accent)] disabled:opacity-50"
           disabled={!hasProject}
           title={hasProject ? undefined : "请先打开项目目录"}
           onClick={() => setCreating((current) => !current)}
@@ -218,26 +263,26 @@ function ResourceEditor({
           {creating ? "取消" : "新建"}
         </button>
       </div>
-      <p className="mb-3 text-xs text-[#9a937c]">{note}</p>
+      <p className="mb-3 text-xs text-[var(--muted)]">{note}</p>
       {creating && (
-        <div className="mb-3 space-y-2 rounded-lg border border-[#33392a] px-3 py-2">
+        <div className="mb-3 space-y-2 rounded-lg border border-[var(--line)] px-3 py-2">
           {kind === "prompt" && (
             <>
               <input
-                className="w-full rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-xs"
+                className="w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-xs"
                 placeholder="模板名称，例如 review"
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
               />
               <input
-                className="w-full rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-xs"
+                className="w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-xs"
                 placeholder="描述（可选）"
                 value={newDescription}
                 onChange={(event) => setNewDescription(event.target.value)}
               />
             </>
           )}
-          {kind === "agents" && <div className="text-xs text-[#9a937c]">将创建 AGENTS.md，保存后可继续编辑内容。</div>}
+          {kind === "agents" && <div className="text-xs text-[var(--muted)]">将创建 AGENTS.md，保存后可继续编辑内容。</div>}
           {hasProject && (
             <div className="flex gap-3 text-xs">
               <label className="flex items-center gap-1">
@@ -252,7 +297,7 @@ function ResourceEditor({
           )}
           <button
             type="button"
-            className="rounded bg-[#c4d45a] px-2 py-1 text-xs text-[#16180f] disabled:opacity-50"
+            className="rounded bg-[var(--accent-bg)] px-2 py-1 text-xs text-[var(--on-accent)] disabled:opacity-50"
             disabled={creatingBusy || (kind === "prompt" && !newName.trim())}
             onClick={() => void createFile()}
           >
@@ -261,30 +306,30 @@ function ResourceEditor({
         </div>
       )}
       {items.length === 0 && !creating ? (
-        <div className="text-sm text-[#9a937c]">暂无文件，点击右上角「新建」。</div>
+        <div className="text-sm text-[var(--muted)]">暂无文件，点击右上角「新建」。</div>
       ) : (
         <ul className="space-y-2">
           {items.map((item) => {
             const open = openPath === item.path;
             const draft = drafts[item.path] ?? { content: item.content, description: item.description ?? "" };
             return (
-              <li key={item.path} className="rounded-lg border border-[#33392a]">
+              <li key={item.path} className="rounded-lg border border-[var(--line)]">
                 <button
                   type="button"
                   className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm"
                   onClick={() => setOpenPath(open ? null : item.path)}
                 >
                   <span className="min-w-0 truncate">{item.name}</span>
-                  <span className="shrink-0 text-[11px] text-[#9a937c]">{open ? "收起" : "展开"}</span>
+                  <span className="shrink-0 text-[11px] text-[var(--muted)]">{open ? "收起" : "展开"}</span>
                 </button>
                 {open && (
-                  <div className="space-y-2 border-t border-[#33392a] px-3 py-2">
-                    <div className="truncate font-mono text-[11px] text-[#9a937c]" title={item.path}>
+                  <div className="space-y-2 border-t border-[var(--line)] px-3 py-2">
+                    <div className="truncate font-mono text-[11px] text-[var(--muted)]" title={item.path}>
                       {item.path}
                     </div>
                     {item.kind === "prompt" && (
                       <input
-                        className="w-full rounded border border-[#33392a] bg-[#12140f] px-2 py-1 text-xs"
+                        className="w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-xs"
                         placeholder="描述"
                         value={draft.description}
                         onChange={(event) =>
@@ -296,7 +341,7 @@ function ResourceEditor({
                       />
                     )}
                     <textarea
-                      className="h-48 w-full resize-y rounded border border-[#33392a] bg-[#12140f] px-2 py-1 font-mono text-xs leading-5"
+                      className="h-48 w-full resize-y rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 font-mono text-xs leading-5"
                       value={draft.content}
                       onChange={(event) =>
                         setDrafts((current) => ({
@@ -305,10 +350,10 @@ function ResourceEditor({
                         }))
                       }
                     />
-                    {item.truncated && <div className="text-[11px] text-[#e07a5f]">内容过长，已截断显示，保存会覆盖为当前编辑内容。</div>}
+                    {item.truncated && <div className="text-[11px] text-[var(--danger)]">内容过长，已截断显示，保存会覆盖为当前编辑内容。</div>}
                     <button
                       type="button"
-                      className="rounded bg-[#c4d45a] px-2 py-1 text-xs text-[#16180f] disabled:opacity-50"
+                      className="rounded bg-[var(--accent-bg)] px-2 py-1 text-xs text-[var(--on-accent)] disabled:opacity-50"
                       disabled={savingPath === item.path}
                       onClick={async () => {
                         setSavingPath(item.path);

@@ -1,5 +1,7 @@
-import { BrowserWindow, app, dialog, ipcMain } from "electron";
-import type { CreateResourceFileInput, DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, ResourceFile, ThinkingLevel } from "@shared/types";
+import { BrowserWindow, app, dialog, ipcMain, nativeTheme } from "electron";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { CreateResourceFileInput, DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, ResourceFile, ThemeMode, ThinkingLevel } from "@shared/types";
 import type { AgentHost } from "./agent-host";
 import type { DialogBroker } from "./dialog-broker";
 import { listDirectory, readFileText } from "./fs-panel";
@@ -12,6 +14,17 @@ function wrap<T>(fn: () => Promise<T> | T): Promise<T> {
     .catch((error: unknown) => {
       throw new Error(error instanceof Error ? error.message : String(error));
     });
+}
+
+/** 开发模式下 app.getVersion() 不一定指向项目版本，优先读 package.json。 */
+function appVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../../package.json"), "utf8")) as { version?: string };
+    if (pkg.version) return pkg.version;
+  } catch {
+    // 打包后的 asar 路径异常时回退
+  }
+  return app.getVersion();
 }
 
 export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
@@ -47,6 +60,20 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   ipcMain.handle("app:newSession", () => wrap(() => host.newSession()));
   ipcMain.handle("app:switchSession", (_event, path: string) => wrap(() => host.switchSession(path)));
   ipcMain.handle("app:listSessions", () => wrap(() => host.listSessions()));
+  ipcMain.handle("app:deleteSession", (_event, path: string) => wrap(() => host.deleteSession(path)));
+  ipcMain.handle("app:getVersion", () => appVersion());
+  ipcMain.handle("app:setTheme", (_event, theme: ThemeMode) =>
+    wrap(() => {
+      const mode: ThemeMode = theme === "light" || theme === "dark" ? theme : "system";
+      nativeTheme.themeSource = mode;
+      savePrefs({ theme: mode });
+      const background = nativeTheme.shouldUseDarkColors ? "#12140f" : "#f6f4ec";
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.setBackgroundColor(background);
+      }
+      return mode;
+    }),
+  );
   ipcMain.handle("app:nameSession", (_event, name: string) => wrap(() => host.nameSession(name)));
   ipcMain.handle("app:fork", (_event, entryId: string) => wrap(() => host.fork(entryId)));
   ipcMain.handle("app:clone", () => wrap(() => host.clone()));

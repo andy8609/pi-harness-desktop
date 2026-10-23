@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { BrowserWindow, app, shell } from "electron";
+import { BrowserWindow, app, nativeTheme, shell } from "electron";
 import { AgentHost } from "./agent-host";
 import { setCatalogListener } from "./catalog";
 import { DialogBroker } from "./dialog-broker";
@@ -27,6 +27,7 @@ function bindWindowPause(window: BrowserWindow): void {
 
 function createWindow(): BrowserWindow {
   const prefs = loadPrefs();
+  nativeTheme.themeSource = prefs.theme ?? "system";
   const window = new BrowserWindow({
     width: prefs.windowBounds?.width ?? 1440,
     height: prefs.windowBounds?.height ?? 920,
@@ -36,7 +37,7 @@ function createWindow(): BrowserWindow {
     minHeight: 720,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: "#12140f",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#12140f" : "#f6f4ec",
     title: "Pi Desktop",
     webPreferences: {
       preload: existsSync(join(__dirname, "../preload/index.mjs"))

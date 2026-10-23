@@ -1,11 +1,15 @@
 import { CaretDown, Check } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import type { ThinkingLevel } from "@shared/types";
+import { THINKING_LEVEL_LABEL, orderedThinkingLevels, type ThinkingLevel } from "@shared/types";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
 
-const FALLBACK_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-
-export function ModelPicker() {
+export function ModelPicker({
+  placement = "down",
+  compact = false,
+}: {
+  placement?: "up" | "down";
+  compact?: boolean;
+}) {
   const model = useAppStore((state) => state.snapshot?.model);
   const thinkingLevel = useAppStore((state) => state.snapshot?.thinkingLevel ?? "off");
   const availableThinkingLevels = useAppStore((state) => state.snapshot?.availableThinkingLevels);
@@ -14,22 +18,28 @@ export function ModelPicker() {
   const available = models.filter((item) => item.available);
   const current = model ? `${model.provider}/${model.id}` : "";
   const currentModel = available.find((item) => `${item.provider}/${item.id}` === current);
-  const levels =
-    (availableThinkingLevels && availableThinkingLevels.length > 0
-      ? availableThinkingLevels
-      : currentModel?.thinkingLevels && currentModel.thinkingLevels.length > 0
-        ? currentModel.thinkingLevels
-        : currentModel?.reasoning
-          ? FALLBACK_LEVELS.filter((level) => level !== "xhigh" && level !== "max")
-          : ["off"]) ?? ["off"];
+  const levels = orderedThinkingLevels(
+    currentModel?.thinkingLevels?.length
+      ? currentModel.thinkingLevels
+      : availableThinkingLevels?.length
+        ? availableThinkingLevels
+        : ["off"],
+  );
   const thinkingValue = levels.includes(thinkingLevel) ? thinkingLevel : (levels[0] ?? "off");
 
+  const modelLabel = current
+    ? compact
+      ? (model?.name ?? model?.id ?? "选择模型")
+      : `${model?.provider}/${model?.name ?? model?.id}`
+    : "选择模型";
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-1.5">
       <MenuSelect
         ariaLabel="选择模型"
+        placement={placement}
         value={current}
-        label={current ? `${model?.provider}/${model?.name ?? model?.id}` : "选择模型"}
+        label={modelLabel}
         options={available.map((item) => ({
           value: `${item.provider}/${item.id}`,
           label: `${item.provider}/${item.name}`,
@@ -43,14 +53,18 @@ export function ModelPicker() {
             pushToast("error", error instanceof Error ? error.message : String(error));
           }
         }}
-        className="max-w-[260px]"
+        className={compact ? "max-w-[168px]" : "max-w-[220px]"}
       />
       <MenuSelect
         ariaLabel="思考等级"
+        placement={placement}
         value={thinkingValue}
-        label={thinkingValue}
+        label={compact ? `思考 · ${THINKING_LEVEL_LABEL[thinkingValue] ?? thinkingValue}` : (THINKING_LEVEL_LABEL[thinkingValue] ?? thinkingValue)}
         disabled={levels.length <= 1}
-        options={levels.map((level) => ({ value: level, label: level }))}
+        options={levels.map((level) => ({
+          value: level,
+          label: THINKING_LEVEL_LABEL[level] ?? level,
+        }))}
         onChange={async (value) => {
           try {
             await window.pi.setThinkingLevel(value as ThinkingLevel);
@@ -58,6 +72,7 @@ export function ModelPicker() {
             pushToast("error", error instanceof Error ? error.message : String(error));
           }
         }}
+        className={compact ? "shrink-0" : ""}
       />
     </div>
   );
@@ -71,6 +86,7 @@ function MenuSelect({
   disabled,
   className = "",
   ariaLabel,
+  placement = "down",
 }: {
   value: string;
   label: string;
@@ -79,6 +95,7 @@ function MenuSelect({
   disabled?: boolean;
   className?: string;
   ariaLabel: string;
+  placement?: "up" | "down";
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -107,7 +124,7 @@ function MenuSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled}
-        className="flex max-w-full items-center gap-1 rounded-lg border border-[#33392a] bg-[#12140f] px-2 py-1 text-xs disabled:opacity-50"
+        className="flex max-w-full items-center gap-1 rounded-lg border border-[#33392a] bg-[#12140f] px-2 py-1.5 text-xs disabled:opacity-50"
         onClick={() => setOpen((current) => !current)}
       >
         <span className="min-w-0 flex-1 truncate">{label || "选择"}</span>
@@ -116,7 +133,9 @@ function MenuSelect({
       {open && (
         <div
           role="listbox"
-          className="absolute right-0 z-40 mt-1 max-h-72 min-w-full overflow-auto rounded-lg border border-[#33392a] bg-[#1a1d16] py-1 shadow-xl"
+          className={`absolute right-0 z-40 max-h-72 min-w-full overflow-auto rounded-lg border border-[#33392a] bg-[#1a1d16] py-1 shadow-xl ${
+            placement === "up" ? "bottom-full mb-1" : "mt-1"
+          }`}
         >
           {options.length === 0 ? (
             <div className="px-3 py-1.5 text-xs text-[#9a937c]">无可选项</div>

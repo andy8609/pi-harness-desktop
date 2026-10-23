@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CustomProviderConfig } from "@shared/types";
 import { listRemoteModels, type RemoteModel } from "../../lib/remote-models";
 import { useAppStore } from "../../stores/app-store";
@@ -172,18 +173,12 @@ export function ProviderDialog({
     }
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={() => {
-        if (!saving) onClose();
-      }}
-    >
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div
         role="dialog"
         aria-modal="true"
         className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-[var(--line)] bg-[var(--bg-panel)]"
-        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3">
           <h2 className="text-base font-medium">{editingId ? "编辑服务" : "添加 AI 服务"}</h2>
@@ -310,6 +305,7 @@ export function ProviderDialog({
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

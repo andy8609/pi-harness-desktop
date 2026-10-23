@@ -320,7 +320,7 @@ export const useAppStore = create<AppState>((set) => ({
         const index = reports.findIndex((item) => item.id === report.id);
         const next =
           index >= 0 ? reports.map((item, itemIndex) => (itemIndex === index ? report : item)) : [...reports, report];
-        return { snapshot: { ...state.snapshot, watchdogReports: next.slice(-5) } };
+        return { snapshot: { ...state.snapshot, watchdogReports: next.slice(-20) } };
       });
       return;
     }

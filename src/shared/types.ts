@@ -42,6 +42,26 @@ export interface PackageInventory {
 
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
+export const THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+/** 勾了 reasoning 但没写 thinkingLevels 时，下拉框与模型页共用的默认档位。 */
+export const DEFAULT_REASONING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high"];
+
+export const THINKING_LEVEL_LABEL: Record<ThinkingLevel, string> = {
+  off: "关闭",
+  minimal: "最低",
+  low: "低",
+  medium: "中",
+  high: "高",
+  xhigh: "很高",
+  max: "最高",
+};
+
+export function orderedThinkingLevels(levels: readonly string[]): ThinkingLevel[] {
+  const allowed = new Set(levels);
+  return THINKING_LEVELS.filter((level) => allowed.has(level));
+}
+
 export type StreamingBehavior = "steer" | "followUp";
 
 export interface ChatContentPart {

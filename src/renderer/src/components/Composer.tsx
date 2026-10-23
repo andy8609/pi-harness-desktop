@@ -1,7 +1,20 @@
-import { FileText, Paperclip, ShieldCheck, Stop, PaperPlaneTilt, X } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CaretRight,
+  CheckCircle,
+  File,
+  FileText,
+  Image,
+  Plus,
+  ShieldCheck,
+  Sparkle,
+  Stop,
+  PaperPlaneTilt,
+  X,
+} from "@phosphor-icons/react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { FileSearchResult, PromptImage, SlashCommand } from "@shared/types";
 import type { GpaStage } from "@shared/gpa";
+import { ModelPicker } from "./ModelPicker";
 import { PlanTimeline } from "./PlanTimeline";
 import { SkillPicker } from "./SkillPicker";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
@@ -44,6 +57,11 @@ export function Composer() {
   };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendingRef = useRef(false);
+  const plusRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const gpa = snapshot?.gpa;
   const gpaEnabled = Boolean(gpa && gpa.stage !== "off");
   const fullTrust = Boolean(snapshot?.fullTrust);
@@ -79,6 +97,28 @@ export function Composer() {
     useAppStore.setState({ referenceQueue: [] });
     textareaRef.current?.focus();
   }, [referenceQueue]);
+
+  useEffect(() => {
+    if (!plusOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!plusRef.current?.contains(event.target as Node)) {
+        setPlusOpen(false);
+        setSkillsOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      if (skillsOpen) setSkillsOpen(false);
+      else setPlusOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [plusOpen, skillsOpen]);
 
   const runBuiltin = async (command: SlashCommand, rest: string) => {
     if (command.source !== "builtin") return false;
@@ -260,39 +300,22 @@ export function Composer() {
     }
   };
 
+  const pickFiles = (input: HTMLInputElement | null) => {
+    setPlusOpen(false);
+    setSkillsOpen(false);
+    input?.click();
+  };
+
+  const onFilesChosen = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    for (const file of selected) void addAttachment(file);
+  };
+
   return (
     <div className="border-t border-[#33392a] bg-[#1a1d16] p-3">
-      {snapshot && (
+      {snapshot && (gpaEnabled || gpa?.awaitingConfirmation || ((snapshot.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy)) && (
         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-          <button
-            type="button"
-            title={gpaEnabled ? "关闭 GPA 工作流" : "开启 GPA（目标 → 计划 → 执行）工作流"}
-            className={`rounded-md border px-2 py-0.5 ${
-              gpaEnabled
-                ? "border-[#c4d45a] bg-[#c4d45a] text-[#16180f]"
-                : "border-[#33392a] text-[#9a937c] hover:border-[#c4d45a]"
-            }`}
-            onClick={() => void window.pi.setGpaEnabled(!gpaEnabled)}
-          >
-            GPA {gpaEnabled ? "已开启" : "关闭"}
-          </button>
-          <button
-            type="button"
-            title={
-              fullTrust
-                ? "已完全信任此项目：跳过工具风险确认。密钥/凭据文件仍禁止访问。"
-                : "开启后跳过此项目的工具风险确认框，运行中不再弹确认。密钥/凭据文件仍禁止访问。"
-            }
-            className={`rounded-md border px-2 py-0.5 ${
-              fullTrust
-                ? "border-[#c4d45a] bg-[#c4d45a] text-[#16180f]"
-                : "border-[#33392a] text-[#9a937c] hover:border-[#c4d45a]"
-            }`}
-            onClick={() => void toggleFullTrust()}
-          >
-            <ShieldCheck size={12} className="mr-1 inline" />
-            完全信任 {fullTrust ? "已开启" : "关闭"}
-          </button>
           {gpaEnabled && gpa && (
             <span className="rounded bg-[#22261c] px-2 py-0.5 text-[#c4d45a]">{GPA_STAGE_LABEL[gpa.stage]}</span>
           )}
@@ -305,14 +328,14 @@ export function Composer() {
               {gpa.awaitingConfirmation === "goal" ? "✓ 确认目标，进入计划" : "✓ 确认计划，开始执行"}
             </button>
           )}
-          {gpa?.stage === "act" && (snapshot?.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy && (
+          {gpa?.stage === "act" && (snapshot.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy && (
             <button
               type="button"
               className="rounded-md bg-[#c4d45a] px-2 py-0.5 text-[#16180f]"
               title="从上次中断的计划项继续执行"
               onClick={() => void window.pi.resumeGpaPlan()}
             >
-              继续执行剩余任务（还剩 {snapshot?.gpaPlanResume?.pendingCount} 项）
+              继续执行剩余任务（还剩 {snapshot.gpaPlanResume?.pendingCount} 项）
             </button>
           )}
         </div>
@@ -420,37 +443,96 @@ export function Composer() {
           }
         }}
       />
-      <div className="mt-2 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs text-[#9a937c]">
-          <label
-            className="flex cursor-pointer items-center gap-1"
-            title="上传图片或文本类文档（.md/.txt/.json 等）"
+      <div className="mt-2 flex items-center gap-2">
+        <div ref={plusRef} className="relative shrink-0">
+          <button
+            type="button"
+            title="更多"
+            aria-label="打开加号菜单"
+            aria-expanded={plusOpen}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm ${
+              plusOpen
+                ? "border-[#c4d45a] bg-[#22261c] text-[#c4d45a]"
+                : "border-[#33392a] text-[#ece7d5] hover:border-[#c4d45a]"
+            }`}
+            onClick={() => {
+              setPlusOpen((open) => {
+                const next = !open;
+                if (!next) setSkillsOpen(false);
+                return next;
+              });
+            }}
           >
-            <Paperclip size={14} />
-            上传
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(event) => {
-                const selected = Array.from(event.target.files ?? []);
-                // 清空值以允许再次选择同一文件
-                event.target.value = "";
-                for (const file of selected) void addAttachment(file);
-              }}
-            />
-          </label>
-          <SkillPicker onSelect={insertSkill} />
+            <Plus size={16} />
+          </button>
+          {plusOpen && (
+            <div className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-xl border border-[#33392a] bg-[#1a1d16] py-1 shadow-xl">
+              <PlusMenuItem
+                icon={<File size={16} />}
+                label="添加文件"
+                onClick={() => pickFiles(fileInputRef.current)}
+              />
+              <PlusMenuItem
+                icon={<Image size={16} />}
+                label="添加图片"
+                onClick={() => pickFiles(imageInputRef.current)}
+              />
+              <PlusMenuItem
+                icon={<Sparkle size={16} />}
+                label="Skills"
+                trailing={<CaretRight size={12} className="text-[#9a937c]" />}
+                active={skillsOpen}
+                onClick={() => setSkillsOpen((open) => !open)}
+              />
+              <div className="my-1 border-t border-[#33392a]" />
+              <PlusMenuItem
+                icon={<ShieldCheck size={16} weight={fullTrust ? "fill" : "regular"} />}
+                label="完全访问"
+                badge={fullTrust ? "已开启" : undefined}
+                active={fullTrust}
+                accent="amber"
+                title={
+                  fullTrust
+                    ? "已完全信任此项目：跳过工具风险确认。密钥/凭据文件仍禁止访问。"
+                    : "开启后跳过此项目的工具风险确认框，运行中不再弹确认。密钥/凭据文件仍禁止访问。"
+                }
+                onClick={() => void toggleFullTrust()}
+              />
+              <PlusMenuItem
+                icon={<CheckCircle size={16} weight={gpaEnabled ? "fill" : "regular"} />}
+                label="开启 GPA"
+                badge={gpaEnabled ? "已开启" : undefined}
+                active={gpaEnabled}
+                accent="blue"
+                title={gpaEnabled ? "关闭 GPA 工作流" : "开启 GPA（目标 → 计划 → 执行）工作流"}
+                onClick={() => void window.pi.setGpaEnabled(!gpaEnabled)}
+              />
+              {skillsOpen && (
+                <div className="absolute bottom-0 left-full z-50 ml-1">
+                  <SkillPicker
+                    onSelect={(name) => {
+                      insertSkill(name);
+                      setPlusOpen(false);
+                      setSkillsOpen(false);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFilesChosen} />
+          <input ref={imageInputRef} type="file" multiple accept="image/*" className="hidden" onChange={onFilesChosen} />
         </div>
-        <div className="flex gap-2">
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
+          <ModelPicker placement="up" compact />
           {busy && (
-            <button className="rounded-lg border border-[#e07a5f] px-3 py-1.5 text-sm text-[#e07a5f]" onClick={() => void window.pi.abort()}>
+            <button className="shrink-0 rounded-lg border border-[#e07a5f] px-3 py-1.5 text-sm text-[#e07a5f]" onClick={() => void window.pi.abort()}>
               <Stop size={14} className="mr-1 inline" />
               中止
             </button>
           )}
           <button
-            className="rounded-lg bg-[#c4d45a] px-3 py-1.5 text-sm text-[#16180f] hover:bg-[#d7e56a]"
+            className="shrink-0 rounded-lg bg-[#c4d45a] px-3 py-1.5 text-sm text-[#16180f] hover:bg-[#d7e56a]"
             onClick={() => void submit()}
           >
             <PaperPlaneTilt size={14} className="mr-1 inline" />
@@ -517,5 +599,49 @@ export function Composer() {
         </div>
       )}
     </div>
+  );
+}
+
+const ACCENT_CLASS: Record<string, string> = {
+  amber: "text-[#e0a45a]",
+  purple: "text-[#b48ec9]",
+  blue: "text-[#7eb8c9]",
+};
+
+function PlusMenuItem({
+  icon,
+  label,
+  trailing,
+  badge,
+  active,
+  accent,
+  title,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  trailing?: ReactNode;
+  badge?: string;
+  active?: boolean;
+  accent?: "amber" | "purple" | "blue";
+  title?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      className={`mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${
+        active ? "border border-[#c4d45a]/50 bg-[#22261c] text-[#ece7d5]" : "border border-transparent text-[#ece7d5] hover:bg-[#22261c]"
+      }`}
+      onClick={onClick}
+    >
+      <span className={`shrink-0 ${active ? "text-[#c4d45a]" : accent ? ACCENT_CLASS[accent] : "text-[#9a937c]"}`}>{icon}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {badge && (
+        <span className="shrink-0 rounded bg-[#2a3a22] px-1.5 py-0.5 text-[10px] text-[#8fbf7a]">{badge}</span>
+      )}
+      {trailing}
+    </button>
   );
 }

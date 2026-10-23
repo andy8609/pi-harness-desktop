@@ -2,29 +2,32 @@ import { copyFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { shell } from "electron";
-import type {
-  CatalogPackage,
-  DesktopSettings,
-  DialogRequest,
-  InstalledResource,
-  ModelOption,
-  ModelsFile,
-  PackageInventory,
-  PromptImage,
-  PromptPayload,
-  ProviderOption,
-  QueueMutation,
-  CreateResourceFileInput,
-  ResourceFile,
-  ResourceFiles,
-  ResourceSummary,
-  SessionListItem,
-  SessionSnapshot,
-  SlashCommand,
-  StreamEvent,
-  ThinkingLevel,
-  TreeNode,
-  WatchdogReport,
+import {
+  DEFAULT_REASONING_LEVELS,
+  THINKING_LEVELS,
+  orderedThinkingLevels,
+  type CatalogPackage,
+  type DesktopSettings,
+  type DialogRequest,
+  type InstalledResource,
+  type ModelOption,
+  type ModelsFile,
+  type PackageInventory,
+  type PromptImage,
+  type PromptPayload,
+  type ProviderOption,
+  type QueueMutation,
+  type CreateResourceFileInput,
+  type ResourceFile,
+  type ResourceFiles,
+  type ResourceSummary,
+  type SessionListItem,
+  type SessionSnapshot,
+  type SlashCommand,
+  type StreamEvent,
+  type ThinkingLevel,
+  type TreeNode,
+  type WatchdogReport,
 } from "@shared/types";
 import {
   applyCompletedPlanTasks,
@@ -96,15 +99,7 @@ function contentToText(content: unknown): string {
 }
 
 /** 合法思考等级集合，用于校验 models.json 中配置的每模型默认思考等级。 */
-const VALID_THINKING_LEVELS = new Set<ThinkingLevel>([
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-]);
+const VALID_THINKING_LEVELS = new Set<ThinkingLevel>(THINKING_LEVELS);
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
   { name: "settings", description: "打开设置", source: "builtin" },
@@ -132,7 +127,7 @@ import { createPermissionExtension } from "./extensions/permissions";
 import { PermissionStore } from "./permission-store";
 import { createGpaExtension } from "./extensions/gpa";
 import { searchProjectFiles } from "./file-search";
-import { readModelsFile, writeModelsFile } from "./models-file";
+import { applySafeCustomOpenAiCompat, readModelsFile, writeModelsFile } from "./models-file";
 import {
   createPackageContext,
   importLocalSkill,
@@ -141,7 +136,7 @@ import {
   toNpmSource,
   type PackageContext,
 } from "./package-ops";
-import { buildSnapshot, collectDisplayMessages, serializeTree } from "./serialize";
+import { buildSnapshot, collectDisplayMessages, mergeWatchdogIntoMessages, serializeTree } from "./serialize";
 
 type EventSink = (event: StreamEvent) => void;
 
@@ -200,6 +195,7 @@ export class AgentHost {
       allowModelNetwork: true,
       refreshOnCreate: true,
     });
+    await this.sanitizeModelsFile();
   }
 
   isBusy(): boolean {
@@ -253,33 +249,22 @@ export class AgentHost {
 
   private thinkingLevelsForModel(provider: string, id: string, reasoning?: boolean): ThinkingLevel[] {
     const custom = this.customModelConfig(provider, id);
-    const configured = (custom?.thinkingLevels ?? []).filter((level): level is ThinkingLevel =>
-      VALID_THINKING_LEVELS.has(level as ThinkingLevel),
-    );
-    if (configured.length > 0) {
-      return configured.includes("off") ? configured : ["off", ...configured];
-    }
-    return reasoning || custom?.reasoning
-      ? ["off", "minimal", "low", "medium", "high"]
-      : ["off"];
+    const configured = orderedThinkingLevels(custom?.thinkingLevels ?? []);
+    if (configured.length > 0) return configured;
+    return reasoning || custom?.reasoning ? [...DEFAULT_REASONING_LEVELS] : ["off"];
   }
 
   private thinkingLevelsForCurrentModel(): ThinkingLevel[] {
-    const session = this.runtime?.session;
-    const model = session?.model;
+    const model = this.runtime?.session?.model;
     if (!model) return ["off"];
-    const fromSession = session?.getAvailableThinkingLevels?.() as ThinkingLevel[] | undefined;
-    const configured = this.thinkingLevelsForModel(model.provider, model.id, model.reasoning);
-    if (fromSession && fromSession.length > 0) {
-      const allowed = new Set(configured);
-      const intersected = fromSession.filter((level) => allowed.has(level));
-      return intersected.length > 0 ? intersected : fromSession;
-    }
-    return configured;
+    return this.thinkingLevelsForModel(model.provider, model.id, model.reasoning);
   }
 
-  /** models.json 里勾选了思考等级但没写 reasoning 时，补上以便 SDK 真正接受思考等级。 */
-  private async migrateModelReasoningFlags(): Promise<void> {
+  /**
+   * 1. 勾了思考等级但没写 reasoning 时补上，桌面思考档位才能生效。
+   * 2. 对非官方 OpenAI 网关写入保守 compat，避免 SDK 默认带上 reasoning_effort / store / max_completion_tokens 被 MaaS 400。
+   */
+  private async sanitizeModelsFile(): Promise<void> {
     const { file } = this.getModelsFile();
     let changed = false;
     for (const provider of Object.values(file.providers ?? {})) {
@@ -294,13 +279,23 @@ export class AgentHost {
         }
       }
     }
-    if (!changed) return;
-    writeModelsFile(this.modelsPath(), file);
+    const compat = applySafeCustomOpenAiCompat(file);
+    if (!changed && !compat.changed) return;
+    writeModelsFile(this.modelsPath(), compat.file);
     await this.requireModels().refresh({ allowNetwork: false });
+    const session = this.runtime?.session;
+    const current = session?.model;
+    if (!current) return;
+    const fresh = this.requireModels().getModel(current.provider, current.id);
+    if (fresh) await session.setModel(fresh);
+  }
+
+  private async migrateModelReasoningFlags(): Promise<void> {
+    await this.sanitizeModelsFile();
   }
 
   private async ensureModelReasoning(provider: string, id: string): Promise<void> {
-    await this.migrateModelReasoningFlags();
+    await this.sanitizeModelsFile();
     const session = this.runtime?.session;
     const current = session?.model;
     if (!current || current.provider !== provider || current.id !== id) return;
@@ -368,7 +363,7 @@ export class AgentHost {
       sessionId: session.sessionId,
       sessionName: session.sessionName,
       sessionFile: session.sessionFile,
-      messages: collectDisplayMessages(session),
+      messages: mergeWatchdogIntoMessages(collectDisplayMessages(session), this.watchdogReports),
       isStreaming: session.isStreaming,
       isCompacting: session.isCompacting,
       model: model
@@ -469,6 +464,8 @@ export class AgentHost {
 
   private async attachSession(): Promise<void> {
     this.stopWatchdog();
+    this.watchdogReports = [];
+    this.watchdogRound = 0;
     this.unsubscribe?.();
     const session = this.requireSession();
     await session.bindExtensions({
@@ -1408,9 +1405,11 @@ export class AgentHost {
     const model = this.requireModels().getModel(provider, id);
     if (!model) throw new Error(`找不到模型 ${provider}/${id}`);
     await this.requireSession().setModel(model);
-    // 对话窗口切换模型后，优先用该模型配置的默认思考等级，否则用全局默认。
+    // 对话窗口切换模型后，优先用该模型配置的默认思考等级，否则用全局默认；必须落在该模型勾选的档位里。
+    const allowed = this.thinkingLevelsForModel(provider, id, model.reasoning);
     const preferred = this.preferredThinkingLevel(provider, id);
-    if (preferred) this.requireSession().setThinkingLevel(preferred);
+    const next = preferred && allowed.includes(preferred) ? preferred : allowed[0];
+    if (next) this.requireSession().setThinkingLevel(next);
     this.runtime?.services.settingsManager.setDefaultModelAndProvider(provider, id);
     this.pushSnapshot();
   }
@@ -1420,7 +1419,10 @@ export class AgentHost {
     const model = session.model;
     if (model) await this.ensureModelReasoning(model.provider, model.id);
     const live = this.requireSession();
-    live.setThinkingLevel(level);
+    const allowed = model
+      ? this.thinkingLevelsForModel(model.provider, model.id, model.reasoning)
+      : ["off"];
+    live.setThinkingLevel(allowed.includes(level) ? level : (allowed[0] ?? "off"));
     if (model) {
       this.runtime?.services.settingsManager.setModelThinkingLevel(model.provider, model.id, live.thinkingLevel);
     }
@@ -1433,7 +1435,8 @@ export class AgentHost {
   }
 
   async saveModelsFile(file: ModelsFile): Promise<void> {
-    writeModelsFile(this.modelsPath(), file);
+    const { file: next } = applySafeCustomOpenAiCompat(file);
+    writeModelsFile(this.modelsPath(), next);
     await this.requireModels().refresh({ allowNetwork: false });
   }
 
@@ -1713,7 +1716,6 @@ export class AgentHost {
       this.watchdogIdleTimer = undefined;
     }
     if (this.watchdogTimer) return;
-    this.watchdogReports = [];
     this.watchdogRound = 0;
     this.watchdogTurnStartedAt = Date.now();
     this.recentToolLog = [];
@@ -1748,7 +1750,7 @@ export class AgentHost {
   private upsertWatchdogReport(report: WatchdogReport): void {
     const index = this.watchdogReports.findIndex((item) => item.id === report.id);
     if (index >= 0) this.watchdogReports[index] = report;
-    else this.watchdogReports = [...this.watchdogReports, report].slice(-5);
+    else this.watchdogReports = [...this.watchdogReports, report].slice(-20);
     this.emit({ type: "watchdog", watchdog: report });
     this.pushSnapshot();
   }

@@ -1,4 +1,14 @@
-import type { CustomModelConfig, CustomProviderConfig, ModelsFile } from "@shared/types";
+import {
+  DEFAULT_REASONING_LEVELS,
+  THINKING_LEVEL_LABEL,
+  THINKING_LEVELS,
+  orderedThinkingLevels,
+  type CustomModelConfig,
+  type CustomProviderConfig,
+  type ModelsFile,
+} from "@shared/types";
+
+export { DEFAULT_REASONING_LEVELS, THINKING_LEVEL_LABEL, THINKING_LEVELS };
 
 /**
  * UI-facing view of a pi `models.json` provider/model, plus the mapping back.
@@ -36,8 +46,6 @@ export const API_STYLES = [
   { id: "anthropic-messages", label: "Anthropic Messages" },
   { id: "google-generative-ai", label: "Google Generative AI" },
 ] as const;
-
-export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 export const CONTEXT_WINDOW_PRESETS = [
   { label: "32K", tokens: 32000 },
@@ -105,7 +113,13 @@ export function providerFromConfig(id: string, config: CustomProviderConfig): Ui
       maxTokens: model.maxTokens,
       reasoning: model.reasoning,
       input: model.input,
-      thinkingLevels: model.thinkingLevels ?? (model.reasoning ? [...THINKING_LEVELS] : []),
+      thinkingLevels: orderedThinkingLevels(
+        model.thinkingLevels?.length
+          ? model.thinkingLevels
+          : model.reasoning
+            ? DEFAULT_REASONING_LEVELS
+            : [],
+      ),
       defaultThinkingLevel: model.defaultThinkingLevel ?? null,
     })),
   };
@@ -121,7 +135,7 @@ export function configFromProvider(provider: UiProvider): CustomProviderConfig {
     ...(model.input !== undefined ? { input: model.input } : {}),
     ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
     ...(model.maxTokens ? { maxTokens: model.maxTokens } : {}),
-    ...(model.thinkingLevels.length > 0 ? { thinkingLevels: model.thinkingLevels } : {}),
+    ...(model.thinkingLevels.length > 0 ? { thinkingLevels: orderedThinkingLevels(model.thinkingLevels) } : {}),
     ...(model.defaultThinkingLevel ? { defaultThinkingLevel: model.defaultThinkingLevel } : {}),
   }));
   return {

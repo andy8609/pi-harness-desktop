@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import {
   CONTEXT_WINDOW_PRESETS,
   MAX_OUTPUT_PRESETS,
+  THINKING_LEVEL_LABEL,
   THINKING_LEVELS,
   formatTokenCount,
   matchPresetIndex,
@@ -416,7 +417,7 @@ export function ModelSelectionPanes({
                                   });
                                 }}
                               >
-                                {level}
+                                {THINKING_LEVEL_LABEL[level]}
                               </button>
                             );
                           })}
@@ -438,7 +439,7 @@ export function ModelSelectionPanes({
                             <option value="">（未设置）</option>
                             {binding.thinkingLevels.map((level) => (
                               <option key={level} value={level}>
-                                {level}
+                                {THINKING_LEVEL_LABEL[level as keyof typeof THINKING_LEVEL_LABEL] ?? level}
                               </option>
                             ))}
                           </select>

@@ -69,6 +69,44 @@ function contentPlainText(content: ChatMessage["content"]): string {
     .trim();
 }
 
+function messageTime(message: ChatMessage): number {
+  if (typeof message.timestamp === "number" && Number.isFinite(message.timestamp)) return message.timestamp;
+  if (typeof message.timestamp === "string") {
+    const parsed = Date.parse(message.timestamp);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+/** 把巡查报告插进对话流，按时间排在当时的消息后面，随列表一起滚动。 */
+export function mergeWatchdogIntoMessages(messages: ChatMessage[], reports: WatchdogReport[]): ChatMessage[] {
+  if (reports.length === 0) return messages;
+  const next = [...messages];
+  for (const report of reports) {
+    const extra: ChatMessage = {
+      role: "custom",
+      customType: "watchdog",
+      content: report.summary,
+      timestamp: report.startedAt,
+      details: report,
+    };
+    const time = report.startedAt || 0;
+    let insertAt = next.length;
+    if (time > 0) {
+      for (let index = 0; index < next.length; index += 1) {
+        const existing = messageTime(next[index]);
+        if (existing > time) {
+          insertAt = index;
+          break;
+        }
+      }
+    }
+    while (insertAt < next.length && next[insertAt]?.role === "toolResult") insertAt += 1;
+    next.splice(insertAt, 0, extra);
+  }
+  return next;
+}
+
 export function collectDisplayMessages(session: {
   messages: unknown[];
   sessionManager: { getBranch: () => SessionEntry[] };

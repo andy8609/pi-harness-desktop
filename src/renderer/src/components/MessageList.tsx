@@ -9,7 +9,7 @@ import { summarizeTurn, type TurnOperationSummary } from "../lib/tool-summary";
 import { useAppStore } from "../stores/app-store";
 import { ToolActivityGroup, type ToolEntry } from "./ToolActivityGroup";
 import { ToolCallCard } from "./ToolCallCard";
-import { WatchdogFeed } from "./SubagentPanel";
+import { WatchdogMessage } from "./SubagentPanel";
 import { WorkingIndicator } from "./WorkingIndicator";
 
 function joinList(items: string[], limit = 8): string {
@@ -40,6 +40,9 @@ function MessageBody({
   const hideThinking = useAppStore((state) => state.settings.hideThinkingBlock);
   if (message.role === "custom") {
     const text = typeof message.content === "string" ? message.content : contentText(message.content);
+    if (message.customType === "watchdog") {
+      return <WatchdogMessage details={message.details} summary={text} />;
+    }
     return (
       <details className="rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] px-3 py-2 text-sm text-[var(--muted)]">
         <summary className="cursor-pointer text-[var(--accent)]">{message.customType || "custom"}</summary>
@@ -202,6 +205,7 @@ function EmptyState() {
 
 export function MessageList({ messages }: { messages: ChatMessage[] }) {
   const busy = useAppStore((state) => state.busy);
+  const watchdogReports = useAppStore((state) => state.snapshot?.watchdogReports ?? []);
   const pushToast = useAppStore((state) => state.pushToast);
   const items = useMemo(() => groupMessages(messages), [messages]);
   const { scrollRef, showJump, handleScroll, jumpToLatest, scheduleFollowScroll } = useFollowScroll<HTMLDivElement>();
@@ -211,7 +215,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
 
   useEffect(() => {
     scheduleFollowScroll();
-  }, [messages, busy, scheduleFollowScroll]);
+  }, [messages, busy, watchdogReports, scheduleFollowScroll]);
 
   const copyText = async (text: string) => {
     if (!text) return;
@@ -313,7 +317,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
                     <MessageBody message={item.message} toolResults={item.toolResults} streaming={streaming} />
                   )}
                 </div>
-                {!editing && (
+                {!editing && item.message.customType !== "watchdog" && (
                   <div className="mt-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                     {text && (
                       <IconAction title="复制" onClick={() => void copyText(text)}>
@@ -330,7 +334,6 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
               </article>
             );
           })}
-          <WatchdogFeed className="mt-3" />
           <WorkingIndicator />
         </div>
       </div>

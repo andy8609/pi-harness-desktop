@@ -3,7 +3,6 @@ import { Composer } from "./Composer";
 import { InlineDialogHost } from "./InlineDialogHost";
 import { MessageList } from "./MessageList";
 import { MessageQueue } from "./MessageQueue";
-import { ModelPicker } from "./ModelPicker";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
 
 export function ChatPane() {
@@ -29,7 +28,6 @@ export function ChatPane() {
           <div className="truncate text-xs text-[var(--muted)]">{snapshot.sessionId}</div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <ModelPicker />
           <button
             className="rounded-lg border border-[var(--line)] px-2 py-1 text-xs hover:border-[var(--accent)]"
             onClick={async () => {

@@ -6,7 +6,7 @@ import {
   type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 
-export const WATCHDOG_INTERVAL_MS = 3 * 60 * 1000;
+export const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
 export const WATCHDOG_TIMEOUT_MS = 2 * 60 * 1000;
 
 export interface WatchdogBrief {

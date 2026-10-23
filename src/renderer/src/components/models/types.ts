@@ -27,6 +27,7 @@ export interface UiModelBinding {
   input?: string[];
   thinkingLevels: string[];
   defaultThinkingLevel: string | null;
+  compat?: Record<string, unknown>;
 }
 
 export interface UiProvider {
@@ -38,6 +39,7 @@ export interface UiProvider {
   headers?: Record<string, string>;
   enabled: boolean;
   models: UiModelBinding[];
+  compat?: Record<string, unknown>;
 }
 
 export const API_STYLES = [
@@ -106,6 +108,7 @@ export function providerFromConfig(id: string, config: CustomProviderConfig): Ui
     apiKey: config.apiKey,
     headers: config.headers,
     enabled: config.enabled !== false,
+    compat: config.compat,
     models: (config.models ?? []).map((model) => ({
       id: model.id,
       alias: model.name,
@@ -121,6 +124,7 @@ export function providerFromConfig(id: string, config: CustomProviderConfig): Ui
             : [],
       ),
       defaultThinkingLevel: model.defaultThinkingLevel ?? null,
+      compat: model.compat,
     })),
   };
 }
@@ -137,6 +141,7 @@ export function configFromProvider(provider: UiProvider): CustomProviderConfig {
     ...(model.maxTokens ? { maxTokens: model.maxTokens } : {}),
     ...(model.thinkingLevels.length > 0 ? { thinkingLevels: orderedThinkingLevels(model.thinkingLevels) } : {}),
     ...(model.defaultThinkingLevel ? { defaultThinkingLevel: model.defaultThinkingLevel } : {}),
+    ...(model.compat && Object.keys(model.compat).length > 0 ? { compat: model.compat } : {}),
   }));
   return {
     ...(provider.name.trim() ? { name: provider.name.trim() } : {}),
@@ -144,6 +149,7 @@ export function configFromProvider(provider: UiProvider): CustomProviderConfig {
     api: provider.api,
     ...(provider.apiKey?.trim() ? { apiKey: provider.apiKey.trim() } : {}),
     ...(provider.headers && Object.keys(provider.headers).length > 0 ? { headers: provider.headers } : {}),
+    ...(provider.compat && Object.keys(provider.compat).length > 0 ? { compat: provider.compat } : {}),
     enabled: provider.enabled,
     models,
   };

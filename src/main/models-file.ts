@@ -34,16 +34,62 @@ function usesOpenAiCompletions(provider: CustomProviderConfig): boolean {
 }
 
 /**
- * Unknown OpenAI-compat MaaS (IPSA/Thor 等) 会把 SDK 默认的 OpenAI 字段当成非法请求打回 400。
- * 只补用户没写过的键，不覆盖已有 compat。
+ * 未知 OpenAI 兼容网关（IPSA/Thor 等）不要默认带 store / developer 角色。
+ * 思考格式和 max_tokens 字段因模型而异，不能写在 provider 上。
  */
 export const SAFE_CUSTOM_OPENAI_COMPAT: Record<string, unknown> = {
   supportsStore: false,
   supportsDeveloperRole: false,
-  supportsReasoningEffort: false,
   supportsUsageInStreaming: false,
-  maxTokensField: "max_tokens",
 };
+
+function idLooksLike(modelId: string, ...needles: string[]): boolean {
+  const id = modelId.toLowerCase();
+  return needles.some((needle) => id.includes(needle));
+}
+
+/** 按模型 id 推断网关该怎么发思考 / max tokens，只填用户没写过的键。 */
+export function inferCustomModelCompat(modelId: string): Record<string, unknown> {
+  if (idLooksLike(modelId, "deepseek")) {
+    return {
+      thinkingFormat: "deepseek",
+      supportsReasoningEffort: false,
+      maxTokensField: "max_tokens",
+      requiresReasoningContentOnAssistantMessages: true,
+    };
+  }
+  if (idLooksLike(modelId, "glm", "chatglm") || modelId.toLowerCase().startsWith("zai")) {
+    return {
+      thinkingFormat: "zai",
+      supportsReasoningEffort: false,
+      maxTokensField: "max_tokens",
+    };
+  }
+  if (idLooksLike(modelId, "qwen", "qwq")) {
+    return {
+      thinkingFormat: "qwen",
+      supportsReasoningEffort: false,
+      maxTokensField: "max_tokens",
+    };
+  }
+  if (idLooksLike(modelId, "gpt", "o1", "o3", "o4", "luna", "codex")) {
+    return {
+      maxTokensField: "max_completion_tokens",
+    };
+  }
+  return {};
+}
+
+function mergeMissing(target: Record<string, unknown>, source: Record<string, unknown>): boolean {
+  let changed = false;
+  for (const [key, value] of Object.entries(source)) {
+    if (target[key] === undefined) {
+      target[key] = value;
+      changed = true;
+    }
+  }
+  return changed;
+}
 
 export function applySafeCustomOpenAiCompat(file: ModelsFile): { file: ModelsFile; changed: boolean } {
   const providers = file.providers ?? {};
@@ -52,13 +98,27 @@ export function applySafeCustomOpenAiCompat(file: ModelsFile): { file: ModelsFil
     if (!usesOpenAiCompletions(provider)) continue;
     if (isOfficialOpenAICompatHost(provider.baseUrl)) continue;
     const next = { ...(provider.compat ?? {}) };
-    for (const [key, value] of Object.entries(SAFE_CUSTOM_OPENAI_COMPAT)) {
-      if (next[key] === undefined) {
-        next[key] = value;
+    if (mergeMissing(next, SAFE_CUSTOM_OPENAI_COMPAT)) changed = true;
+    // 旧逻辑把 max_tokens 写在整个 provider 上，GPT 类模型会 400。
+    if (next.maxTokensField === "max_tokens") {
+      delete next.maxTokensField;
+      changed = true;
+    }
+    // 思考格式改按模型写，provider 上的 false 会挡住 DeepSeek 的 thinking 字段。
+    if (next.supportsReasoningEffort === false && next.thinkingFormat === undefined) {
+      delete next.supportsReasoningEffort;
+      changed = true;
+    }
+    provider.compat = next;
+    for (const model of provider.models ?? []) {
+      const inferred = inferCustomModelCompat(model.id);
+      if (Object.keys(inferred).length === 0) continue;
+      const modelCompat = { ...(model.compat ?? {}) };
+      if (mergeMissing(modelCompat, inferred)) {
+        model.compat = modelCompat;
         changed = true;
       }
     }
-    provider.compat = next;
   }
   return { file, changed };
 }

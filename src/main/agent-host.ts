@@ -262,7 +262,7 @@ export class AgentHost {
 
   /**
    * 1. 勾了思考等级但没写 reasoning 时补上，桌面思考档位才能生效。
-   * 2. 对非官方 OpenAI 网关写入保守 compat，避免 SDK 默认带上 reasoning_effort / store / max_completion_tokens 被 MaaS 400。
+   * 2. 对非官方 OpenAI 网关按模型补 compat：DeepSeek 发 thinking，GPT 用 max_completion_tokens。
    */
   private async sanitizeModelsFile(): Promise<void> {
     const { file } = this.getModelsFile();

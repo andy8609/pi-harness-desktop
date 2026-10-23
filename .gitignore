@@ -3,12 +3,15 @@ out/
 dist/
 release/
 .codebuddy/
-docs/
+docs/*
+!docs/screenshots/
 .pi/
 .workbuddy/
 *.log
 .DS_Store
 *.tsbuildinfo
+test/
+.pi-plan/
 # tsc emit beside sources — Vite resolves .js before .ts
 src/main/**/*.js
 src/main/**/*.d.ts

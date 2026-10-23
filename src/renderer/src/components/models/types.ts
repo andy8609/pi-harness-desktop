@@ -28,6 +28,10 @@ export interface UiModelBinding {
   thinkingLevels: string[];
   defaultThinkingLevel: string | null;
   compat?: Record<string, unknown>;
+  /** 模型级 API 风格（覆盖 provider 的 api），如 openai-responses。 */
+  api?: string;
+  /** 桌面思考档位到网关真实值的映射（如 minimal → low）。 */
+  thinkingLevelMap?: Record<string, string | null>;
 }
 
 export interface UiProvider {
@@ -125,6 +129,8 @@ export function providerFromConfig(id: string, config: CustomProviderConfig): Ui
       ),
       defaultThinkingLevel: model.defaultThinkingLevel ?? null,
       compat: model.compat,
+      api: model.api,
+      thinkingLevelMap: model.thinkingLevelMap,
     })),
   };
 }
@@ -142,6 +148,10 @@ export function configFromProvider(provider: UiProvider): CustomProviderConfig {
     ...(model.thinkingLevels.length > 0 ? { thinkingLevels: orderedThinkingLevels(model.thinkingLevels) } : {}),
     ...(model.defaultThinkingLevel ? { defaultThinkingLevel: model.defaultThinkingLevel } : {}),
     ...(model.compat && Object.keys(model.compat).length > 0 ? { compat: model.compat } : {}),
+    ...(model.api ? { api: model.api } : {}),
+    ...(model.thinkingLevelMap && Object.keys(model.thinkingLevelMap).length > 0
+      ? { thinkingLevelMap: model.thinkingLevelMap }
+      : {}),
   }));
   return {
     ...(provider.name.trim() ? { name: provider.name.trim() } : {}),

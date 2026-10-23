@@ -126,8 +126,21 @@ import type { DialogBroker } from "./dialog-broker";
 import { createPermissionExtension } from "./extensions/permissions";
 import { PermissionStore } from "./permission-store";
 import { createGpaExtension } from "./extensions/gpa";
+import { createParamCompatExtension } from "./extensions/param-compat";
 import { searchProjectFiles } from "./file-search";
-import { applySafeCustomOpenAiCompat, readModelsFile, writeModelsFile } from "./models-file";
+import {
+  applyReasoningLevelOverrides,
+  applySafeCustomOpenAiCompat,
+  forceMaxCompletionTokensField,
+  isMaxTokensFieldUnsupportedError,
+  isReasoningEffortToolsUnsupportedError,
+  maxTokensFieldForModel,
+  readModelsFile,
+  reasoningEffortDisabledForModel,
+  setModelApi,
+  setModelCompatValue,
+  writeModelsFile,
+} from "./models-file";
 import {
   createPackageContext,
   importLocalSkill,
@@ -139,6 +152,9 @@ import {
 import { buildSnapshot, collectDisplayMessages, mergeWatchdogIntoMessages, serializeTree } from "./serialize";
 
 type EventSink = (event: StreamEvent) => void;
+
+/** 400 兜底支持的参数不兼容类型。 */
+type ParameterRecoveryKind = "max-tokens" | "reasoning-effort" | "responses-unavailable";
 
 export class AgentHost {
   private modelRuntime: ModelRuntime | undefined;
@@ -184,6 +200,12 @@ export class AgentHost {
   private watchdogTurnStartedAt = 0;
   private watchdogReports: WatchdogReport[] = [];
   private recentToolLog: string[] = [];
+  /** 已提示过参数名改写的模型，避免每个请求都弹一次 toast。 */
+  private paramCompatNotified = new Set<string>();
+  /** 已做过 400 兜底修正的模型（provider/id），同一会话每个模型每类错误只自动重试一次。 */
+  private recoveredParameters = new Set<string>();
+  /** 等待下一个空闲点执行的 400 兜底（不在流式回合中插手）。 */
+  private pendingParameterRecovery: { kind: ParameterRecoveryKind; provider: string; id: string } | undefined;
 
   constructor(
     private readonly dialogs: DialogBroker,
@@ -258,6 +280,143 @@ export class AgentHost {
     const model = this.runtime?.session?.model;
     if (!model) return ["off"];
     return this.thinkingLevelsForModel(model.provider, model.id, model.reasoning);
+  }
+
+  /**
+   * 服务端 400 兜底：判定属于哪类参数不兼容，登记一次修正 + 重发。
+   * 同一模型同一类错误只处理一次，避免配置本身修不好时无限重试。
+   */
+  private noteProviderParameterError(message: { stopReason?: string; errorMessage?: string }): void {
+    if (message.stopReason !== "error") return;
+    const model = this.runtime?.session?.model;
+    if (!model) return;
+    const kind: ParameterRecoveryKind | undefined = isMaxTokensFieldUnsupportedError(message.errorMessage)
+      ? "max-tokens"
+      : isReasoningEffortToolsUnsupportedError(message.errorMessage)
+        ? "reasoning-effort"
+        // 切到 responses 后才发现网关没有该端点：退回 completions 并关闭思考。
+        : model.api === "openai-responses" && /\b404\b|not found|无法找到|不存在/i.test(message.errorMessage ?? "")
+          ? "responses-unavailable"
+          : undefined;
+    if (!kind) return;
+    const key = `${kind}:${model.provider}/${model.id}`;
+    if (this.recoveredParameters.has(key)) return;
+    this.recoveredParameters.add(key);
+    this.pendingParameterRecovery = { kind, provider: model.provider, id: model.id };
+  }
+
+  /** 按错误类型修正 models.json，成功时返回提示文案；返回 undefined 表示不重试。 */
+  private async applyProviderParameterFix(target: { kind: ParameterRecoveryKind; provider: string; id: string }): Promise<string | undefined> {
+    const file = this.getModelsFile().file;
+    if (target.kind === "max-tokens") {
+      if (!forceMaxCompletionTokensField(file, target.id)) return undefined;
+      writeModelsFile(this.modelsPath(), file);
+      await this.requireModels().refresh({ allowNetwork: false });
+      return `${target.id} 不支持 max_tokens，已切换为 max_completion_tokens…`;
+    }
+    if (target.kind === "responses-unavailable") {
+      return await this.applyResponsesUnavailableFix(target);
+    }
+
+    // reasoning_effort 与 function tools 在 chat/completions 下互斥：
+    // 优先切到 responses（工具 + 思考都保住），网关没有 responses 时降级为关闭思考。
+    const responsesAvailable = await this.probeResponsesEndpoint(target.provider, target.id);
+    if (responsesAvailable) {
+      const changedApi = setModelApi(file, target.id, "openai-responses");
+      const changedLevels = applyReasoningLevelOverrides(file);
+      if (!changedApi && !changedLevels) return undefined;
+      writeModelsFile(this.modelsPath(), file);
+      await this.requireModels().refresh({ allowNetwork: false });
+      return `${target.id} 在 chat/completions 下不支持 tools + reasoning，已切换到 responses…`;
+    }
+    if (!setModelCompatValue(file, target.id, "supportsReasoningEffort", false)) return undefined;
+    writeModelsFile(this.modelsPath(), file);
+    await this.requireModels().refresh({ allowNetwork: false });
+    return `${target.id} 不支持 tools + reasoning，已关闭 reasoning_effort（工具仍可用）…`;
+  }
+
+  /** 网关没有 /responses：退回 chat/completions 并关闭思考，且不能再被配置层翻回去。 */
+  private async applyResponsesUnavailableFix(target: { provider: string; id: string }): Promise<string | undefined> {
+    const file = this.getModelsFile().file;
+    const changedApi = setModelApi(file, target.id, "openai-completions");
+    const changedCompat = setModelCompatValue(file, target.id, "supportsReasoningEffort", false);
+    if (!changedApi && !changedCompat) return undefined;
+    writeModelsFile(this.modelsPath(), file);
+    await this.requireModels().refresh({ allowNetwork: false });
+    return `${target.id} 的网关没有 /responses，已回到 chat/completions 并关闭 reasoning_effort（工具可用）…`;
+  }
+
+  /** 修正配置并重发上一条用户消息（每模型每类错误仅一次）。 */
+  private async recoverProviderParameter(target: { kind: ParameterRecoveryKind; provider: string; id: string }): Promise<void> {
+    try {
+      const message = await this.applyProviderParameterFix(target);
+      if (!message) {
+        this.emit({
+          type: "toast",
+          toastType: "error",
+          message: `${target.id} 的参数已符合要求仍被拒绝，请检查网关设置（未自动重试）`,
+        });
+        return;
+      }
+      const fresh = this.requireModels().getModel(target.provider, target.id);
+      if (fresh) await this.requireSession().setModel(fresh);
+      this.emit({ type: "toast", toastType: "info", message });
+      // GPA 自动续跑正在进行时不再插一条重发，避免两条消息互相干扰。
+      if (this.gpaAutoContinuing) return;
+      const text = this.lastUserPromptText();
+      if (!text) return;
+      await this.requireSession().prompt(text);
+    } catch (error) {
+      this.emit({
+        type: "toast",
+        toastType: "error",
+        message: `自动修正请求参数失败：${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+
+  /** 探测网关是否提供 /responses（404 视为没有）；401/400 等说明端点存在。 */
+  private async probeResponsesEndpoint(providerId: string, modelId: string): Promise<boolean> {
+    const provider = this.getModelsFile().file.providers?.[providerId];
+    const baseUrl = provider?.baseUrl?.trim();
+    if (!baseUrl) return false;
+    const url = `${baseUrl.replace(/\/+$/, "")}/responses`;
+    const apiKey = provider?.apiKey;
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+          ...(provider?.headers ?? {}),
+        },
+        body: JSON.stringify({ model: modelId, input: "ping", stream: false, max_output_tokens: 16 }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      await response.body?.cancel().catch(() => undefined);
+      return response.status !== 404;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 取出最近一条用户消息的纯文本，用于 400 兜底后重发。 */
+  private lastUserPromptText(): string | undefined {
+    const messages = (this.runtime?.session?.messages ?? []) as { role?: string; content?: unknown }[];
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message?.role !== "user") continue;
+      if (typeof message.content === "string") return message.content.trim() || undefined;
+      if (!Array.isArray(message.content)) return undefined;
+      const text = message.content
+        .filter((part): part is { type?: string; text?: string } => typeof part === "object" && part !== null)
+        .filter((part) => part.type === "text" && typeof part.text === "string")
+        .map((part) => part.text as string)
+        .join("\n")
+        .trim();
+      return text || undefined;
+    }
+    return undefined;
   }
 
   /**
@@ -596,11 +755,17 @@ export class AgentHost {
       // ACT 阶段：任务有推进时自动发送下一条指令，避免每完成一项都要用户手动"继续"。
       // 延迟到当前事件循环之后，确保 settled 收尾流程结束再启动新的 run。
       setTimeout(() => void this.maybeAutoContinueGpa(), 0);
+      const recovery = this.pendingParameterRecovery;
+      if (recovery) {
+        this.pendingParameterRecovery = undefined;
+        void this.recoverProviderParameter(recovery);
+      }
       return;
     }
     if (event.type === "message_end") {
-      const message = event.message as { role?: string; content?: unknown } | undefined;
+      const message = event.message as { role?: string; content?: unknown; stopReason?: string; errorMessage?: string } | undefined;
       if (message?.role === "assistant") {
+        this.noteProviderParameterError(message);
         this.flushLiveGpaUpdate();
         // Update GPA on every assistant message so ACT progress is live within
         // a single agent turn (agent_settled only fires once per turn).
@@ -625,6 +790,20 @@ export class AgentHost {
           extensionFactories: [
             createPermissionExtension(this.dialogs, this.permissionStore, () => this.cwd),
             createGpaExtension(() => this.gpaState, this.dialogs),
+            createParamCompatExtension({
+              expectedMaxTokensField: (modelId) => maxTokensFieldForModel(this.getModelsFile().file, modelId),
+              reasoningEffortDisabled: (modelId) => reasoningEffortDisabledForModel(this.getModelsFile().file, modelId),
+              onRewrite: ({ modelId, from, to }) => {
+                const key = `${modelId}:${from}`;
+                if (this.paramCompatNotified.has(key)) return;
+                this.paramCompatNotified.add(key);
+                this.emit({
+                  type: "toast",
+                  toastType: "info",
+                  message: `${modelId} 不支持 ${from}，已自动改写为 ${to}`,
+                });
+              },
+            }),
           ],
         },
         resourceLoaderReloadOptions: {
@@ -735,6 +914,7 @@ export class AgentHost {
 
   async abort(): Promise<void> {
     this.gpaSkipNextAutoContinue = true;
+    this.pendingParameterRecovery = undefined;
     this.stopWatchdog();
     await this.requireSession().abort();
     this.clearActivity();

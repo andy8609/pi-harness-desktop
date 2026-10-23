@@ -244,6 +244,8 @@ export interface CustomModelConfig {
     cacheWrite?: number;
   };
   compat?: Record<string, unknown>;
+  /** pi 会用它把桌面思考档位映射成网关真实支持的值（如 minimal → low）。 */
+  thinkingLevelMap?: Record<string, string | null>;
   /** Desktop UI extension fields (ignored by pi). */
   thinkingLevels?: string[];
   defaultThinkingLevel?: string | null;

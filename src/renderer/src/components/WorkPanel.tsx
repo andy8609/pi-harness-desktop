@@ -5,7 +5,7 @@ import { PanelResizeHandle } from "./PanelResizeHandle";
 import { SubagentPanel } from "./SubagentPanel";
 import { formatCost } from "../lib/text";
 import { useAppStore } from "../stores/app-store";
-import { EmptyState } from "./ui";
+import { EmptyState, ErrorBoundary } from "./ui";
 
 function UsagePanel() {
   const snapshot = useAppStore((state) => state.snapshot);
@@ -107,9 +107,11 @@ export function WorkPanel() {
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
-          {workPanel.tab === "files" && <FileBrowser />}
-          {workPanel.tab === "subagents" && <SubagentPanel />}
-          {workPanel.tab === "usage" && <UsagePanel />}
+          <ErrorBoundary label={`work:${workPanel.tab}`}>
+            {workPanel.tab === "files" && <FileBrowser />}
+            {workPanel.tab === "subagents" && <SubagentPanel />}
+            {workPanel.tab === "usage" && <UsagePanel />}
+          </ErrorBoundary>
         </div>
       </aside>
     </>

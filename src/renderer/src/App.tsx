@@ -11,6 +11,7 @@ import { StatusBar } from "./components/StatusBar";
 import { Toasts } from "./components/Toasts";
 import { WorkPanel } from "./components/WorkPanel";
 import { bootstrapApp, useAppStore } from "./stores/app-store";
+import { ErrorBoundary } from "./components/ui";
 
 export function App() {
   const view = useAppStore((state) => state.view);
@@ -61,26 +62,48 @@ export function App() {
   }, [setDialog]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-canvas text-ink">
-      <div className="flex min-h-0 flex-1">
-        <Sidebar />
-        <main aria-label="主内容" data-view={view} className="relative min-h-0 min-w-[320px] flex-1">
-          <div className={view === "chat" ? "h-full" : "hidden h-full"}>
-            <ChatPane />
-          </div>
-          {view === "sessions" && <SessionsPage />}
-          {view === "extensions" && <ExtensionsPage />}
-          {view === "skills" && <SkillsPage />}
-          <div className={view === "models" ? "h-full" : "hidden h-full"}>
-            <ModelsPage />
-          </div>
-          {view === "settings" && <SettingsPage />}
-        </main>
-        <WorkPanel />
+    <ErrorBoundary
+      label="app"
+      fallback={(error, reset) => (
+        <div className="flex h-full flex-col items-center justify-center gap-3 bg-canvas p-6 text-center">
+          <div className="text-base font-medium text-ink">界面初始化失败</div>
+          <div className="max-w-lg break-words text-sm text-ink-muted">{error.message}</div>
+          <button
+            type="button"
+            className="h-8 rounded-control bg-accent-fill px-3 text-sm font-medium text-on-accent"
+            onClick={reset}
+          >
+            重试
+          </button>
+          <div className="text-2xs text-ink-muted">若反复失败，请重启应用；详细堆栈见开发者工具控制台。</div>
+        </div>
+      )}
+    >
+      <div className="flex h-full min-h-0 flex-col bg-canvas text-ink">
+        <div className="flex min-h-0 flex-1">
+          <Sidebar />
+          <main aria-label="主内容" data-view={view} className="relative min-h-0 min-w-[320px] flex-1">
+            <ErrorBoundary label={`view:${view}`}>
+              <div className={view === "chat" ? "h-full" : "hidden h-full"}>
+                <ChatPane />
+              </div>
+              {view === "sessions" && <SessionsPage />}
+              {view === "extensions" && <ExtensionsPage />}
+              {view === "skills" && <SkillsPage />}
+              <div className={view === "models" ? "h-full" : "hidden h-full"}>
+                <ModelsPage />
+              </div>
+              {view === "settings" && <SettingsPage />}
+            </ErrorBoundary>
+          </main>
+          <ErrorBoundary label="work-panel">
+            <WorkPanel />
+          </ErrorBoundary>
+        </div>
+        <StatusBar />
+        <DialogHost />
+        <Toasts />
       </div>
-      <StatusBar />
-      <DialogHost />
-      <Toasts />
-    </div>
+    </ErrorBoundary>
   );
 }

@@ -187,3 +187,107 @@ powershell -NoProfile -Command "Get-Process electron | Stop-Process -Force"
 | 证据 | 修复前：`html` 的 `fontSize = 14px`，1rem 实测 14px，`h-8` 按钮实测 28px；修复后：html 16px、body 14px，按钮 32px |
 | 修复 | `html { font-size: 16px }` 固定 rem 基准；正文字号与行高改到 `body` |
 | 影响面 | 全部界面的间距与控件尺寸回到设计值（整体略宽松）；重跑 1440 / 1000 / 820 三档视口均无横向溢出，回归 **29/29** 通过 |
+
+---
+
+## 10. 功能修复（第三轮，用户反馈）
+
+### 10.1 Update plan 不实时更新
+
+| 项 | 内容 |
+|---|---|
+| 现象 | ACT 阶段计划列表不随模型输出刷新 |
+| 根因 | `updateGpaFromMessages` 只在 `stage === "plan"` 时调用 `liveReconcileGpaPlanTasks` 对齐任务列表；进入 ACT 后只解析「✅ 任务 Tx 完成」与 `[x]`，模型对计划的细化/追加不会反映到界面 |
+| 修复 | ACT 分支补上 `liveReconcileGpaPlanTasks(next.planTasks, text)`，先对齐任务列表再解析完成声明；`text_delta` 的 120ms 节流实时更新链路保持不变 |
+| 验证 | `tsc` 0 错误、构建通过；实时链路（`scheduleLiveGpaUpdate` → `emit({type:"gpa"})` → 前端 `snapshot.gpa`）与前端 PlanTimeline 渲染条件已核对 |
+
+### 10.2 GPA 执行完后没有完全退出
+
+| 项 | 内容 |
+|---|---|
+| 现象 | 界面显示 GPA 已关闭，但内部仍留着计划（「实际还是开启的」） |
+| 根因 | 完成分支只把 `stage` 置 `off`，`planTasks`、`gpaPlanBody`、`gpaAutoContinue*` 全部保留 |
+| 修复 | 完成时先把全部任务标记为 done 并写入 `.pi-plan/gpa-plan.md`（status=completed），随即 `next = createDefaultGpaState()` 完全重置，并清空 `gpaPlanBody` / `gpaAutoContinueDone` / `gpaAutoContinueStreak` / `gpaSkipNextAutoContinue` |
+| 附带 | `gpaPlanHasIncompleteTasks()` 对 `completed` 返回 false，因此下次开启 GPA 不会再误弹「发现未完成计划」 |
+
+### 10.3 下个任务未开 GPA 时 update plan 应一并关闭
+
+| 项 | 内容 |
+|---|---|
+| 根因 | 同 10.2：`planTasks` 未清空，而前端 `planVisible` 只看 `planTasks.length > 0` |
+| 修复 | 双保险：后端完成时清空计划；前端 `planVisible = gpaEnabled && planTasks.length > 0`（`gpaEnabled` 即 `stage !== "off"`） |
+| 结果 | GPA 关闭后 PlanTimeline 立即消失，新任务不会再挂着旧计划 |
+
+### 10.4 巡查子代理触发条件错误
+
+| 项 | 内容 |
+|---|---|
+| 现象 | 只要本轮总耗时达到 5 分钟就巡查，正常的长任务（由多个短操作组成）被误判 |
+| 根因 | `startWatchdogIfNeeded` 用 `setInterval(WATCHDOG_INTERVAL_MS = 5min)`，计时基准是 `watchdogTurnStartedAt`（本轮开始时间） |
+| 修复 | 删除固定间隔；改为按**单个操作**计时：<br>• `tool_execution_start` → 以「执行 {toolName}」武装 2 分钟计时器<br>• `message_start`(assistant) → 以「模型回复」武装<br>• `tool_execution_end` / `message_end` / `agent_settled` → 清除计时器<br>• 同一操作只巡查一次；操作结束后重置，不累积 |
+| 语义调整 | `WATCHDOG_INTERVAL_MS` → `WATCHDOG_OPERATION_TIMEOUT_MS = 2min`；`WatchdogBrief` 新增 `operation` / `operationElapsedMs` / `turnElapsedMs`；巡查 prompt 改为「当前操作已持续 X 分钟」，并要求给出脱困建议 |
+| 前端 | 巡查卡片时间文案「已运行」→「该操作已持续」 |
+
+### 验证
+
+| 检查 | 结果 |
+|---|---|
+| `npx tsc --noEmit -p tsconfig.web.json` | 0 错误 |
+| `npx tsc --noEmit -p tsconfig.node.json` | 仍是改造前既有 7 条（无新增） |
+| `npm run build` | 成功 |
+| CDP 回归 | 29/29 通过 |
+| 残留引用检查 | `startWatchdogIfNeeded` / `watchdogTimer` / `WATCHDOG_INTERVAL_MS` 均无残留 |
+
+> 说明：GPA 完成清理与巡查触发的**动态行为**需要真实模型会话才能端到端验证（会产生 API 调用与 2 分钟以上等待）。本次完成的是代码级修正 + 类型/构建/回归验证；GPA 侧另有前端条件作为第二道保险。
+
+---
+
+## 11. 事故修复：启动白屏（zustand selector 不稳定）
+
+### 现象
+
+应用启动后窗口内无任何内容（白屏）。renderer 控制台：
+
+```
+The result of getSnapshot should be cached to avoid an infinite loop
+Uncaught Error: Maximum update depth exceeded.
+An error occurred in the <SubagentPanel> component.
+```
+
+### 根因
+
+zustand v5 基于 `useSyncExternalStore`，要求 selector 返回值在状态未变时**保持同一引用**。以下两处 selector 在 fallback 分支每次返回新数组：
+
+```ts
+// SubagentPanel.tsx（触发白屏）
+const messages = useAppStore((state) => state.snapshot?.messages ?? []);
+// MessageList.tsx（同类隐患）
+const watchdogReports = useAppStore((state) => state.snapshot?.watchdogReports ?? []);
+```
+
+`snapshot` 为 `null`（bootstrap 完成前）时 `?? []` 每次产生新引用 → React 判定快照变化 → 重新渲染 → 再产生新数组 → 无限循环。
+
+触发条件：**同时满足「snapshot 尚未加载」与「工作区停在子代理 Tab」**（Tab 状态持久化在 localStorage）。因此不是每次启动都复现，属于潜伏 bug，非本轮改动引入。
+
+### 修复
+
+| 文件 | 改动 |
+|---|---|
+| `SubagentPanel.tsx` | 模块级 `const EMPTY_MESSAGES: ChatMessage[] = []`，selector 返回该常量 |
+| `MessageList.tsx` | 模块级 `const EMPTY_WATCHDOG_REPORTS: WatchdogReport[] = []` |
+| `ui/ErrorBoundary.tsx`（新增） | 类组件错误边界，提供默认兜底（错误摘要 + 重试）与自定义 fallback |
+| `App.tsx` | 顶层 `ErrorBoundary`（失败时显示「界面初始化失败 + 重试」而非白屏）；主内容区与工作区各自独立边界 |
+| `WorkPanel.tsx` | Tab 内容区单独包裹 `ErrorBoundary`，单个面板崩溃不影响 Tab 栏 |
+
+### 验证
+
+| 检查 | 结果 |
+|---|---|
+| dev 模式控制台 | 无 `Maximum update depth` / `getSnapshot` / `Uncaught`，React 正常初始化 |
+| `tsc --noEmit -p tsconfig.web.json` | 0 错误 |
+| `npm run build` | 成功 |
+| CDP 回归 | **30/30 通过**（新增第 30 项：工作区三个 Tab 均可渲染，无白屏/无错误边界） |
+
+### 新增规范约定
+
+> **zustand selector 不得返回新引用。** 需要保底空值时，用模块级常量（见 `EMPTY_MESSAGES`），或用 `useShallow`；禁止在 selector 内写 `?? []`、`?? {}`、`.filter()`、`.map()`。

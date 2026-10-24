@@ -60,7 +60,7 @@ import {
   writeAgentsContextFile,
   writePromptTemplateFile,
 } from "./resource-files";
-import { WATCHDOG_INTERVAL_MS, runWatchdogSubagent } from "./watchdog-subagent";
+import { WATCHDOG_OPERATION_TIMEOUT_MS, runWatchdogSubagent } from "./watchdog-subagent";
 import {
   type CreateAgentSessionRuntimeFactory,
   type CreateAgentSessionRuntimeResult,
@@ -194,7 +194,13 @@ export class AgentHost {
   private readonly permissionStore = new PermissionStore();
   private static readonly MAX_GPA_NO_PROGRESS_CONTINUES = 2;
   private static readonly GPA_LIVE_UPDATE_MS = 120;
-  private watchdogTimer: ReturnType<typeof setInterval> | undefined;
+  /**
+   * 巡查定时器：按「单个操作耗时」而不是「本轮总时长」触发。
+   * 一次工具调用或一次模型回复超过 WATCHDOG_OPERATION_TIMEOUT_MS 才启动巡查。
+   */
+  private watchdogOpTimer: ReturnType<typeof setTimeout> | undefined;
+  private watchdogOpStartedAt = 0;
+  private watchdogOpLabel = "";
   private watchdogIdleTimer: ReturnType<typeof setTimeout> | undefined;
   private watchdogAbort: AbortController | undefined;
   private watchdogRound = 0;
@@ -648,7 +654,7 @@ export class AgentHost {
   private handleSessionEvent(event: { type: string; [key: string]: unknown }): void {
     if (event.type === "agent_start") {
       this.setActivity("正在连接模型…");
-      this.startWatchdogIfNeeded();
+      this.startWatchdogTurn();
       return;
     }
     if (event.type === "message_start") {
@@ -657,6 +663,7 @@ export class AgentHost {
       else if (role === "assistant") {
         this.streamingAssistantText = "";
         this.setActivity("模型正在回复…");
+        this.armWatchdogForOperation("模型回复");
       }
       return;
     }
@@ -679,6 +686,8 @@ export class AgentHost {
       const toolName = String(event.toolName ?? "工具");
       this.recentToolLog = [...this.recentToolLog, toolName].slice(-8);
       this.setActivity(`正在执行 ${toolName}…`);
+      // 单次工具调用耗时过长才值得巡查（构建/安装/长命令除外，那正是巡查要判断的）
+      this.armWatchdogForOperation(`执行 ${toolName}`);
       this.emit({
         type: "tool_start",
         toolCallId: String(event.toolCallId ?? ""),
@@ -701,6 +710,7 @@ export class AgentHost {
     }
     if (event.type === "tool_execution_end") {
       this.setActivity("工具已完成，继续处理…");
+      this.clearWatchdogOperation();
       this.emit({
         type: "tool_end",
         toolCallId: String(event.toolCallId ?? ""),
@@ -748,6 +758,7 @@ export class AgentHost {
       return;
     }
     if (event.type === "agent_settled") {
+      this.clearWatchdogOperation();
       this.armWatchdogIdleStop();
       this.clearActivity();
       this.flushLiveGpaUpdate();
@@ -768,6 +779,7 @@ export class AgentHost {
       if (message?.role === "assistant") {
         this.noteProviderParameterError(message);
         this.flushLiveGpaUpdate();
+        this.clearWatchdogOperation();
         // Update GPA on every assistant message so ACT progress is live within
         // a single agent turn (agent_settled only fires once per turn).
         this.updateGpaFromMessages(contentToText(message.content));
@@ -1298,6 +1310,8 @@ export class AgentHost {
         if (text.trim()) this.gpaPlanBody = text;
       }
       if (next.stage === "act") {
+        // 计划可能在 ACT 中被模型细化或追加（"更新计划"），先实时对齐再解析完成声明
+        next = { ...next, planTasks: liveReconcileGpaPlanTasks(next.planTasks, text) };
         const declarations = parseGpaCompletedTaskDeclarations(text, next.planTasks);
         for (const declaration of declarations) {
           next = applyCompletedPlanTasks(next, declaration.taskIds);
@@ -1314,11 +1328,16 @@ export class AgentHost {
       next.stage === "act" && next.planTasks.length > 0 && next.planTasks.every((task) => task.done);
     // A fully completed ACT ends the one-shot GPA workflow. During streaming, wait for settle.
     if (finishedAct && !options?.live) {
-      void this.persistGpaPlanFile(
-        "completed",
-        next.planTasks.map((task) => ({ ...task, done: true })),
-      );
-      next = { ...next, stage: "off", awaitingConfirmation: null };
+      const completedTasks = next.planTasks.map((task) => ({ ...task, done: true }));
+      // 先把完成快照写盘（body 在调用时求值，不受下面清空影响）
+      void this.persistGpaPlanFile("completed", completedTasks, this.gpaPlanBody);
+      // 完全退出：计划、正文与续跑计数一并清空，
+      // 否则下一个任务即使没开 GPA，界面仍会挂着「Update plan」。
+      next = createDefaultGpaState();
+      this.gpaPlanBody = "";
+      this.gpaAutoContinueDone = 0;
+      this.gpaAutoContinueStreak = 0;
+      this.gpaSkipNextAutoContinue = false;
       this.emit({ type: "toast", toastType: "info", message: "GPA 流程已完成，已自动关闭。" });
     }
     const changed = this.gpaStateChanged(previous, next);
@@ -1910,18 +1929,37 @@ export class AgentHost {
     return `${gpa.stage} ${done}/${gpa.planTasks.length}`;
   }
 
-  private startWatchdogIfNeeded(): void {
+  /** 每轮开始时重置巡查上下文（不再启动固定间隔定时器）。 */
+  private startWatchdogTurn(): void {
     if (this.watchdogIdleTimer) {
       clearTimeout(this.watchdogIdleTimer);
       this.watchdogIdleTimer = undefined;
     }
-    if (this.watchdogTimer) return;
+    this.clearWatchdogOperation();
     this.watchdogRound = 0;
     this.watchdogTurnStartedAt = Date.now();
     this.recentToolLog = [];
-    this.watchdogTimer = setInterval(() => {
+  }
+
+  /**
+   * 为「当前这一个操作」武装巡查定时器。
+   * 操作结束时必须调用 clearWatchdogOperation()，因此由多个短操作组成的长任务不会触发巡查。
+   */
+  private armWatchdogForOperation(label: string): void {
+    this.clearWatchdogOperation();
+    this.watchdogOpStartedAt = Date.now();
+    this.watchdogOpLabel = label;
+    this.watchdogOpTimer = setTimeout(() => {
+      this.watchdogOpTimer = undefined;
       void this.runWatchdog();
-    }, WATCHDOG_INTERVAL_MS);
+    }, WATCHDOG_OPERATION_TIMEOUT_MS);
+  }
+
+  private clearWatchdogOperation(): void {
+    if (this.watchdogOpTimer) clearTimeout(this.watchdogOpTimer);
+    this.watchdogOpTimer = undefined;
+    this.watchdogOpStartedAt = 0;
+    this.watchdogOpLabel = "";
   }
 
   private armWatchdogIdleStop(): void {
@@ -1939,10 +1977,7 @@ export class AgentHost {
       clearTimeout(this.watchdogIdleTimer);
       this.watchdogIdleTimer = undefined;
     }
-    if (this.watchdogTimer) {
-      clearInterval(this.watchdogTimer);
-      this.watchdogTimer = undefined;
-    }
+    this.clearWatchdogOperation();
     this.watchdogAbort?.abort();
     this.watchdogAbort = undefined;
   }
@@ -1960,23 +1995,31 @@ export class AgentHost {
     const model = session?.model;
     if (!session || !model) return;
     if (!(session.isStreaming || session.isCompacting)) return;
+    // 只有确实存在「已超时的单个操作」才巡查
+    if (!this.watchdogOpStartedAt) return;
+
+    const operation = this.watchdogOpLabel || "未知操作";
+    const operationElapsedMs = Date.now() - this.watchdogOpStartedAt;
+    const turnElapsedMs = Date.now() - this.watchdogTurnStartedAt;
+    const operationMinutes = Math.max(1, Math.round(operationElapsedMs / 60000));
+
     this.watchdogAbort?.abort();
     const abort = new AbortController();
     this.watchdogAbort = abort;
     this.watchdogRound += 1;
     const report: WatchdogReport = {
-      id: `watchdog-${this.watchdogTurnStartedAt}-${this.watchdogRound}`,
+      id: `watchdog-${this.watchdogOpStartedAt}-${this.watchdogRound}`,
       round: this.watchdogRound,
-      elapsedMs: Date.now() - this.watchdogTurnStartedAt,
+      elapsedMs: operationElapsedMs,
       status: "running",
-      summary: "正在查询主代理执行情况…",
+      summary: `正在检查「${operation}」的执行情况…`,
       startedAt: Date.now(),
     };
     this.upsertWatchdogReport(report);
     this.emit({
       type: "toast",
       toastType: "info",
-      message: `任务已超过 ${Math.round(report.elapsedMs / 60000)} 分钟，正在启动子代理查看进度`,
+      message: `${operation} 已持续 ${operationMinutes} 分钟，正在启动子代理查看进度`,
     });
     try {
       const summary = await runWatchdogSubagent({
@@ -1987,7 +2030,9 @@ export class AgentHost {
         signal: abort.signal,
         brief: {
           cwd: this.runtime?.cwd ?? this.cwd,
-          elapsedMs: report.elapsedMs,
+          operationElapsedMs,
+          operation,
+          turnElapsedMs,
           round: this.watchdogRound,
           activity: this.activityLabel,
           lastUser: this.lastUserText(),

@@ -6,12 +6,22 @@ import {
   type ModelRuntime,
 } from "@earendil-works/pi-coding-agent";
 
-export const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
+/**
+ * 巡查触发阈值：**单个操作**（一次工具调用或一次模型回复）持续超过该时长才巡查。
+ * 不再按「本轮总时长」定时巡查 —— 正常的长任务由多个短操作组成，不应因此被判定为卡住。
+ */
+export const WATCHDOG_OPERATION_TIMEOUT_MS = 2 * 60 * 1000;
+/** 巡查子代理自身的执行超时。 */
 export const WATCHDOG_TIMEOUT_MS = 2 * 60 * 1000;
 
 export interface WatchdogBrief {
   cwd: string;
-  elapsedMs: number;
+  /** 当前操作已持续的毫秒数（巡查依据）。 */
+  operationElapsedMs: number;
+  /** 当前操作的描述，例如「执行 bash」「模型回复」。 */
+  operation: string;
+  /** 本轮总计耗时，仅作为上下文背景。 */
+  turnElapsedMs: number;
   round: number;
   activity?: string;
   lastUser?: string;
@@ -20,21 +30,24 @@ export interface WatchdogBrief {
 }
 
 export function buildWatchdogPrompt(brief: WatchdogBrief): string {
-  const minutes = Math.max(1, Math.round(brief.elapsedMs / 60000));
+  const opMinutes = Math.max(1, Math.round(brief.operationElapsedMs / 60000));
+  const turnMinutes = Math.max(1, Math.round(brief.turnElapsedMs / 60000));
   const tools = brief.recentTools?.length ? brief.recentTools.join(" → ") : "暂无工具记录";
   const goal = brief.lastUser?.trim() ? brief.lastUser.trim().slice(0, 800) : "未知";
   const activity = brief.activity?.trim() || "未知";
   const gpa = brief.gpa?.trim() || "未启用 GPA";
   return [
-    "你是进度巡查子代理。主代理正在处理用户任务，本轮已超过时限仍未结束。",
+    "你是进度巡查子代理。主代理的**某一个操作**已持续超过时限仍未结束，可能是卡住或正在执行重活。",
     "请只读检查工作区，用中文给出简短进展报告（不超过 12 行）：",
-    "1. 当前最可能卡在哪一步",
+    "1. 这个操作最可能卡在哪里",
     "2. 已有哪些可见进展（文件、计划、输出）",
-    "3. 看起来是正常执行、卡住，还是失败",
+    "3. 看起来是正常执行（重任务）、卡住，还是失败",
+    "4. 如果是卡住，给出可执行的脱困建议",
     "不要修改任何文件，不要运行会改变状态的命令。",
     "",
     `项目目录：${brief.cwd}`,
-    `已运行约 ${minutes} 分钟（第 ${brief.round} 次巡查）`,
+    `当前操作：${brief.operation}（已持续约 ${opMinutes} 分钟）`,
+    `本轮总计：约 ${turnMinutes} 分钟（第 ${brief.round} 次巡查）`,
     `主代理当前活动：${activity}`,
     `GPA：${gpa}`,
     `最近工具：${tools}`,

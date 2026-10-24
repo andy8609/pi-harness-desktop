@@ -2,7 +2,7 @@ import { ArrowDown, Copy, PencilSimple, TerminalWindow } from "@phosphor-icons/r
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatMessage } from "@shared/types";
+import type { ChatMessage, WatchdogReport } from "@shared/types";
 import { useFollowScroll } from "../hooks/useFollowScroll";
 import { contentText, thinkingText, toolCalls } from "../lib/text";
 import { summarizeTurn, type TurnOperationSummary } from "../lib/tool-summary";
@@ -189,9 +189,12 @@ function IconAction({
   );
 }
 
+/** 稳定空数组：selector 返回新数组会触发 useSyncExternalStore 无限更新。 */
+const EMPTY_WATCHDOG_REPORTS: WatchdogReport[] = [];
+
 export function MessageList({ messages }: { messages: ChatMessage[] }) {
   const busy = useAppStore((state) => state.busy);
-  const watchdogReports = useAppStore((state) => state.snapshot?.watchdogReports ?? []);
+  const watchdogReports = useAppStore((state) => state.snapshot?.watchdogReports ?? EMPTY_WATCHDOG_REPORTS);
   const pushToast = useAppStore((state) => state.pushToast);
   const items = useMemo(() => groupMessages(messages), [messages]);
   const { scrollRef, showJump, handleScroll, jumpToLatest, scheduleFollowScroll } = useFollowScroll<HTMLDivElement>();

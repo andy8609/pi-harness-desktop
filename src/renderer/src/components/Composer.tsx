@@ -73,7 +73,7 @@ export function Composer() {
       gpa?.awaitingConfirmation ||
       ((snapshot?.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy),
   );
-  const planVisible = (gpa?.planTasks.length ?? 0) > 0;
+  const planVisible = gpaEnabled && (gpa?.planTasks.length ?? 0) > 0;
 
   const slashQuery = text.startsWith("/") ? text.slice(1).split(/\s/)[0] : "";
   const filteredCommands = useMemo(

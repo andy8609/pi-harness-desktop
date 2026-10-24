@@ -11,3 +11,4 @@ export { SegmentedControl } from "./SegmentedControl";
 export type { SegmentedOption } from "./SegmentedControl";
 export { Field, Switch, inputClass, textareaClass } from "./Field";
 export { Modal } from "./Modal";
+export { ErrorBoundary } from "./ErrorBoundary";

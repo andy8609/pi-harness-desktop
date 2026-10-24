@@ -1,6 +1,6 @@
 import { CaretDown, Circle, CircleNotch, XCircle } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
-import type { WatchdogReport } from "@shared/types";
+import type { ChatMessage, WatchdogReport } from "@shared/types";
 import { collectDelegations } from "../lib/subagent-topology";
 import { formatElapsed } from "../lib/text";
 import { useAppStore } from "../stores/app-store";
@@ -73,7 +73,7 @@ export function WatchdogMessage({
           巡查子代理{resolved ? ` · 第 ${resolved.round} 轮` : ""}
         </span>
         {resolved && (
-          <span className="text-ink-muted">已运行 {formatElapsed(Math.floor(resolved.elapsedMs / 1000))}</span>
+          <span className="text-ink-muted">该操作已持续 {formatElapsed(Math.floor(resolved.elapsedMs / 1000))}</span>
         )}
         {status === "running" && <span className="text-accent">查询中</span>}
         {!open && (
@@ -89,8 +89,15 @@ export function WatchdogMessage({
   );
 }
 
+/**
+ * 稳定的空数组常量。
+ * zustand v5 用 useSyncExternalStore 比较 selector 结果：若每次返回新数组，
+ * 会报 “getSnapshot should be cached” 并进入无限更新循环（曾导致子代理面板挂载时整页白屏）。
+ */
+const EMPTY_MESSAGES: ChatMessage[] = [];
+
 export function SubagentPanel() {
-  const messages = useAppStore((state) => state.snapshot?.messages ?? []);
+  const messages = useAppStore((state) => state.snapshot?.messages ?? EMPTY_MESSAGES);
   const items = useMemo(() => collectDelegations(messages), [messages]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = items.find((item) => item.id === selectedId) ?? items[items.length - 1];

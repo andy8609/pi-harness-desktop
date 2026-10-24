@@ -179,6 +179,30 @@ async function main() {
   check("工作区面板可打开", work.open, JSON.stringify(work.tabs));
   check("工作区开关位于对话页头", work.inHeader, String(work.inHeader));
 
+  // 工作区三个 Tab 都必须能渲染（selector 不稳定曾导致子代理面板无限更新 → 整页白屏）
+  const workTabs = await evaluate(`(async () => {
+    const out = [];
+    for (const label of ["文件", "子代理", "用量"]) {
+      const btn = [...document.querySelectorAll('aside[aria-label="工作区"] [role="tab"]')]
+        .find((b) => b.textContent.trim() === label);
+      btn?.click();
+      await new Promise((r) => setTimeout(r, 400));
+      const aside = document.querySelector('aside[aria-label="工作区"]');
+      out.push({
+        label,
+        clicked: Boolean(btn),
+        crashed: Boolean(aside && aside.innerText.includes("该区域渲染失败")),
+        contentLength: aside ? aside.innerText.trim().length : 0,
+      });
+    }
+    return out;
+  })()`);
+  check(
+    "工作区三个 Tab 均可渲染（无白屏/无错误边界）",
+    workTabs.every((t) => t.clicked && !t.crashed && t.contentLength > 0),
+    JSON.stringify(workTabs),
+  );
+
   // 7. 横向溢出检测：默认视口 + 两档窄窗口
   const overflowAt = async (width, height) => {
     await client.send("Emulation.setDeviceMetricsOverride", {

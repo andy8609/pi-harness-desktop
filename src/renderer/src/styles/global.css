@@ -1,115 +1,201 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
-:root {
-  color-scheme: dark;
-  --bg: #12140f;
-  --bg-panel: #1a1d16;
-  --bg-raised: #22261c;
-  --bg-code: #10130d;
-  --line: #33392a;
-  --line-strong: #3b4132;
-  --text: #ece7d5;
-  --text-soft: #cfc8b0;
-  --muted: #9a937c;
-  --accent: #c4d45a;
-  --accent-bg: #c4d45a;
-  --accent-bg-strong: #d7e56a;
-  --accent-soft: rgba(196, 212, 90, 0.16);
-  --accent-line: rgba(196, 212, 90, 0.5);
-  --on-accent: #16180f;
-  --on-solid: #16180f;
-  --danger: #e07a5f;
-  --danger-soft: #2a1612;
-  --ok: #8fbf7a;
-  --ok-soft: #2a3a22;
-  --info: #7eb8c9;
-  --info-soft: rgba(126, 184, 201, 0.18);
-  --purple: #b48ec9;
-  --purple-soft: rgba(180, 142, 201, 0.18);
-  --warn: #e0a45a;
-  --warn-soft: rgba(224, 164, 90, 0.18);
-  --user-bubble: #262b1f;
-  --overlay: rgba(0, 0, 0, 0.6);
-  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+/*
+ * 把设计令牌映射为 Tailwind 语义工具类（inline 表示引用运行时变量，随 data-theme 重算）。
+ * 约定：颜色用 canvas / surface / ink / line / accent / danger / ok / warn / info，
+ *       字号用 text-2xs / text-xs / text-sm / ...，圆角用 rounded-control / rounded-panel / rounded-surface。
+ */
+@theme inline {
+  /* Surfaces */
+  --color-canvas: var(--bg);
+  --color-surface: var(--bg-panel);
+  --color-surface-muted: var(--bg-code);
+  --color-surface-raised: var(--bg-raised);
+  --color-scrim: var(--overlay);
+
+  /* Text */
+  --color-ink: var(--text);
+  --color-ink-soft: var(--text-soft);
+  --color-ink-muted: var(--muted);
+
+  /* Borders */
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-subtle: var(--line-subtle);
+
+  /* Accent */
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-accent-fill: var(--accent-bg);
+  --color-accent-fill-strong: var(--accent-bg-strong);
+  --color-on-accent: var(--on-accent);
+  --color-on-solid: var(--on-solid);
+
+  /* Status */
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-purple: var(--purple);
+  --color-purple-soft: var(--purple-soft);
+
+  --color-user-bubble: var(--user-bubble);
+
+  /* Shape */
+  --radius-control: var(--corner-control);
+  --radius-panel: var(--corner-panel);
+  --radius-surface: var(--corner-surface);
+  --radius-pill: var(--corner-pill);
+
+  /* Elevation */
+  --shadow-resting: var(--elevation-resting);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-floating: var(--elevation-floating);
+
+  /* Type */
+  --font-sans: var(--typeface-sans);
+  --font-mono: var(--typeface-mono);
+  --font-display: var(--typeface-display);
+
+  --text-2xs: var(--fs-2xs);
+  --text-2xs--line-height: var(--lh-2xs);
+  --text-xs: var(--fs-xs);
+  --text-xs--line-height: var(--lh-xs);
+  --text-sm: var(--fs-sm);
+  --text-sm--line-height: var(--lh-sm);
+  --text-base: var(--fs-base);
+  --text-base--line-height: var(--lh-base);
+  --text-lg: var(--fs-lg);
+  --text-lg--line-height: var(--lh-lg);
+  --text-xl: var(--fs-xl);
+  --text-xl--line-height: var(--lh-xl);
+  --text-2xl: var(--fs-2xl);
+  --text-2xl--line-height: var(--lh-2xl);
+
+  /* Motion */
+  --ease-standard: var(--motion-ease-standard);
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg: #f7f6f1;
-  --bg-panel: #ffffff;
-  --bg-raised: #f0eee6;
-  --bg-code: #f5f2e8;
-  --line: #e3dfd2;
-  --line-strong: #cec8b6;
-  --text: #262b20;
-  --text-soft: #4a503f;
-  --muted: #716d5c;
-  --accent: #5f7016;
-  --accent-bg: #c9d964;
-  --accent-bg-strong: #b8ca4e;
-  --accent-soft: rgba(95, 112, 22, 0.13);
-  --accent-line: rgba(95, 112, 22, 0.4);
-  --on-accent: #1a1e0c;
-  --on-solid: #ffffff;
-  --danger: #b5502f;
-  --danger-soft: #f8e3da;
-  --ok: #4c7a35;
-  --ok-soft: #e4efd9;
-  --info: #2f6f7d;
-  --info-soft: #e2eff1;
-  --purple: #6f4f8c;
-  --purple-soft: #eee7f5;
-  --warn: #96661c;
-  --warn-soft: #f6ead7;
-  --user-bubble: #ece9dd;
-  --overlay: rgba(20, 18, 10, 0.45);
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /* rem 基准固定为 16px：正文号不能放到 html 上，否则 Tailwind 的 rem 尺寸
+     （h-8 / p-4 / gap-3 …）会跟着缩小，控件高度与间距与设计值不符。 */
+  html {
+    font-size: 16px;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--typeface-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    font-size: var(--fs-sm);
+    line-height: var(--lh-sm);
+  }
+
+  button,
+  textarea,
+  input,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* 键盘焦点环：统一取自令牌，鼠标点击不出现 */
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--accent);
+  }
+
+  /* 细覆盖滚动条：轨道透明，滑块内缩，悬停加深 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border: 2px solid transparent;
+    border-radius: var(--corner-pill);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
+/* Motion Off：供截图与测试使用，所有变化立即落到终态 */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-button,
-textarea,
-input,
-select {
-  font: inherit;
-}
-
-input[type="checkbox"],
-input[type="radio"] {
-  accent-color: var(--accent);
-}
-
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 999px;
+/* Markdown（消息渲染） */
+.markdown-body {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
 }
 
 .markdown-body pre {
   overflow-x: auto;
-  padding: 0.75rem;
+  padding: var(--space-3);
   background: var(--bg-code);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--corner-control);
 }
 
 .markdown-body code {
-  font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+  font-family: var(--typeface-mono);
   font-size: 0.85em;
 }
 
@@ -117,6 +203,45 @@ input[type="radio"] {
   margin: 0.4rem 0;
 }
 
-.markdown-body ul {
+.markdown-body ul,
+.markdown-body ol {
   padding-left: 1.2rem;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: var(--fs-xs);
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--line);
+  padding: var(--space-2);
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--bg-raised);
+  font-weight: var(--weight-medium);
+}
+
+.markdown-body blockquote {
+  margin: 0.5rem 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line-strong);
+  color: var(--text-soft);
+}
+
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: var(--space-4) 0;
 }

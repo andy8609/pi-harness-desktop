@@ -17,6 +17,7 @@ import type { GpaStage } from "@shared/gpa";
 import { ModelPicker } from "./ModelPicker";
 import { PlanTimeline } from "./PlanTimeline";
 import { SkillPicker } from "./SkillPicker";
+import { Badge, Button } from "./ui";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
 
 const GPA_STAGE_LABEL: Record<GpaStage, string> = {
@@ -66,6 +67,13 @@ export function Composer() {
   const gpaEnabled = Boolean(gpa && gpa.stage !== "off");
   const fullTrust = Boolean(snapshot?.fullTrust);
   const setDialog = useAppStore((state) => state.setDialog);
+  /** GPA 辅助条是否有内容（避免空容器占位，审计：无内容时的空白行） */
+  const gpaBarVisible = Boolean(
+    gpaEnabled ||
+      gpa?.awaitingConfirmation ||
+      ((snapshot?.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy),
+  );
+  const planVisible = (gpa?.planTasks.length ?? 0) > 0;
 
   const slashQuery = text.startsWith("/") ? text.slice(1).split(/\s/)[0] : "";
   const filteredCommands = useMemo(
@@ -313,49 +321,53 @@ export function Composer() {
   };
 
   return (
-    <div className="border-t border-[var(--line)] bg-[var(--bg-panel)] p-3">
-      {snapshot && (gpaEnabled || gpa?.awaitingConfirmation || ((snapshot.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy)) && (
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-          {gpaEnabled && gpa && (
-            <span className="rounded bg-[var(--bg-raised)] px-2 py-0.5 text-[var(--accent)]">{GPA_STAGE_LABEL[gpa.stage]}</span>
+    <div className="shrink-0 border-t border-line bg-surface px-6 py-3">
+      {snapshot && (gpaBarVisible || planVisible) && (
+        <div className="mb-2 flex flex-col gap-2 rounded-panel bg-surface-raised px-3 py-2">
+          {gpaBarVisible && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {gpaEnabled && gpa && <Badge tone="accent">{GPA_STAGE_LABEL[gpa.stage]}</Badge>}
+              {gpa?.awaitingConfirmation && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="text-accent"
+                  onClick={() => void window.pi.confirmGpa()}
+                >
+                  {gpa.awaitingConfirmation === "goal" ? "确认目标，进入计划" : "确认计划，开始执行"}
+                </Button>
+              )}
+              {gpa?.stage === "act" && (snapshot.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="text-accent"
+                  title="从上次中断的计划项继续执行"
+                  onClick={() => void window.pi.resumeGpaPlan()}
+                >
+                  继续执行剩余任务（还剩 {snapshot.gpaPlanResume?.pendingCount} 项）
+                </Button>
+              )}
+            </div>
           )}
-          {gpa?.awaitingConfirmation && (
-            <button
-              type="button"
-              className="rounded-md bg-[var(--accent-bg)] px-2 py-0.5 text-[var(--on-accent)]"
-              onClick={() => void window.pi.confirmGpa()}
-            >
-              {gpa.awaitingConfirmation === "goal" ? "✓ 确认目标，进入计划" : "✓ 确认计划，开始执行"}
-            </button>
-          )}
-          {gpa?.stage === "act" && (snapshot.gpaPlanResume?.pendingCount ?? 0) > 0 && !busy && (
-            <button
-              type="button"
-              className="rounded-md bg-[var(--accent-bg)] px-2 py-0.5 text-[var(--on-accent)]"
-              title="从上次中断的计划项继续执行"
-              onClick={() => void window.pi.resumeGpaPlan()}
-            >
-              继续执行剩余任务（还剩 {snapshot.gpaPlanResume?.pendingCount} 项）
-            </button>
-          )}
+          {planVisible && gpa && <PlanTimeline state={gpa} isRunning={busy || Boolean(snapshot.isStreaming)} />}
         </div>
       )}
-      {snapshot?.gpa && <PlanTimeline state={snapshot.gpa} isRunning={busy || Boolean(snapshot.isStreaming)} />}
       {(filteredCommands.length > 0 || files.length > 0) && (
-        <div className="mb-2 max-h-40 overflow-auto rounded-lg border border-[var(--line)] bg-[var(--bg)] p-2 text-sm">
+        <div className="mb-2 max-h-40 overflow-auto rounded-control border border-line bg-canvas p-2 text-sm">
           {filteredCommands.map((command) => (
             <button
               key={`${command.source}-${command.name}`}
-              className="block w-full truncate px-2 py-1 text-left hover:bg-[var(--bg-raised)]"
+              className="block w-full truncate px-2 py-1 text-left hover:bg-surface-raised"
               onClick={() => setText(`/${command.name} `)}
             >
-              /{command.name} <span className="text-[var(--muted)]">{command.description}</span>
+              /{command.name} <span className="text-ink-muted">{command.description}</span>
             </button>
           ))}
           {files.map((file) => (
             <button
               key={file.path}
-              className="block w-full truncate px-2 py-1 text-left hover:bg-[var(--bg-raised)]"
+              className="block w-full truncate px-2 py-1 text-left hover:bg-surface-raised"
               onClick={() => {
                 setText((current) => current.replace(/@([^\s]*)$/, `@${file.relative} `));
                 setFiles([]);
@@ -374,14 +386,14 @@ export function Composer() {
                 src={`data:${image.mimeType};base64,${image.data}`}
                 alt={`附件 ${index + 1}`}
                 title="点击预览"
-                className="h-16 w-16 cursor-zoom-in rounded-lg border border-[var(--line)] object-cover hover:border-[var(--accent)]"
+                className="h-16 w-16 cursor-zoom-in rounded-control border border-line object-cover hover:border-accent"
                 onClick={() => setPreview(image)}
               />
               <button
                 type="button"
                 title="移除图片"
                 aria-label="移除图片"
-                className="absolute -top-1.5 -right-1.5 rounded-full border border-[var(--line)] bg-[var(--bg)] p-0.5 text-[var(--muted)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                className="absolute -top-1.5 -right-1.5 rounded-full border border-line bg-canvas p-0.5 text-ink-muted hover:border-danger hover:text-danger"
                 onClick={() => setImages((current) => current.filter((_, i) => i !== index))}
               >
                 <X size={11} />
@@ -393,17 +405,17 @@ export function Composer() {
               <button
                 type="button"
                 title={`${doc.name}（点击预览内容）`}
-                className="flex h-16 w-16 cursor-zoom-in flex-col items-center justify-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-1 hover:border-[var(--accent)]"
+                className="flex h-16 w-16 cursor-zoom-in flex-col items-center justify-center gap-1 rounded-control border border-line bg-canvas px-1 hover:border-accent"
                 onClick={() => setPreviewDoc(doc)}
               >
-                <FileText size={18} className="shrink-0 text-[var(--muted)]" />
-                <span className="w-full truncate text-center text-[9px] text-[var(--muted)]">{doc.name}</span>
+                <FileText size={18} className="shrink-0 text-ink-muted" />
+                <span className="w-full truncate text-center text-2xs text-ink-muted">{doc.name}</span>
               </button>
               <button
                 type="button"
                 title="移除文档"
                 aria-label="移除文档"
-                className="absolute -top-1.5 -right-1.5 rounded-full border border-[var(--line)] bg-[var(--bg)] p-0.5 text-[var(--muted)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                className="absolute -top-1.5 -right-1.5 rounded-full border border-line bg-canvas p-0.5 text-ink-muted hover:border-danger hover:text-danger"
                 onClick={() => setDocs((current) => current.filter((_, i) => i !== index))}
               >
                 <X size={11} />
@@ -412,9 +424,10 @@ export function Composer() {
           ))}
         </div>
       )}
-      <textarea
-        ref={textareaRef}
-        className="min-h-[88px] w-full resize-none rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+      <div className="rounded-panel border border-line bg-canvas transition-colors duration-[var(--motion-instant)] focus-within:border-accent">
+        <textarea
+          ref={textareaRef}
+          className="min-h-[80px] w-full resize-none bg-transparent px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:outline-none"
         placeholder="输入消息。/ 命令，@ 引用文件，! 运行 bash，!! 运行但不发给模型。Enter 发送，Shift+Enter 换行。"
         value={text}
         onChange={(event) => setText(event.target.value)}
@@ -442,18 +455,19 @@ export function Composer() {
             void window.pi.abort();
           }
         }}
-      />
-      <div className="mt-2 flex items-center gap-2">
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <div ref={plusRef} className="relative shrink-0">
           <button
             type="button"
             title="更多"
             aria-label="打开加号菜单"
             aria-expanded={plusOpen}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm ${
+            className={`flex h-8 w-8 items-center justify-center rounded-control border text-sm ${
               plusOpen
-                ? "border-[var(--accent)] bg-[var(--bg-raised)] text-[var(--accent)]"
-                : "border-[var(--line)] text-[var(--text)] hover:border-[var(--accent)]"
+                ? "border-accent bg-surface-raised text-accent"
+                : "border-line text-ink hover:border-accent"
             }`}
             onClick={() => {
               setPlusOpen((open) => {
@@ -466,7 +480,7 @@ export function Composer() {
             <Plus size={16} />
           </button>
           {plusOpen && (
-            <div className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-xl border border-[var(--line)] bg-[var(--bg-panel)] py-1 shadow-xl">
+            <div className="absolute bottom-full left-0 z-[var(--z-popover)] mb-2 w-64 rounded-panel border border-line bg-surface py-1 shadow-floating">
               <PlusMenuItem
                 icon={<File size={16} />}
                 label="添加文件"
@@ -480,11 +494,11 @@ export function Composer() {
               <PlusMenuItem
                 icon={<Sparkle size={16} />}
                 label="Skills"
-                trailing={<CaretRight size={12} className="text-[var(--muted)]" />}
+                trailing={<CaretRight size={12} className="text-ink-muted" />}
                 active={skillsOpen}
                 onClick={() => setSkillsOpen((open) => !open)}
               />
-              <div className="my-1 border-t border-[var(--line)]" />
+              <div className="my-1 border-t border-line" />
               <PlusMenuItem
                 icon={<ShieldCheck size={16} weight={fullTrust ? "fill" : "regular"} />}
                 label="完全访问"
@@ -508,7 +522,7 @@ export function Composer() {
                 onClick={() => void window.pi.setGpaEnabled(!gpaEnabled)}
               />
               {skillsOpen && (
-                <div className="absolute bottom-0 left-full z-50 ml-1">
+                <div className="absolute bottom-0 left-full z-[var(--z-popover)] ml-1">
                   <SkillPicker
                     onSelect={(name) => {
                       insertSkill(name);
@@ -526,18 +540,18 @@ export function Composer() {
         <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
           <ModelPicker placement="up" compact />
           {busy && (
-            <button className="shrink-0 rounded-lg border border-[var(--danger)] px-3 py-1.5 text-sm text-[var(--danger)]" onClick={() => void window.pi.abort()}>
-              <Stop size={14} className="mr-1 inline" />
+            <Button variant="danger" size="sm" icon={<Stop size={14} />} onClick={() => void window.pi.abort()}>
               中止
-            </button>
+            </Button>
           )}
-          <button
-            className="shrink-0 rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-sm text-[var(--on-accent)] hover:bg-[var(--accent-bg-strong)]"
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<PaperPlaneTilt size={14} />}
             onClick={() => void submit()}
           >
-            <PaperPlaneTilt size={14} className="mr-1 inline" />
             发送
-          </button>
+          </Button>
         </div>
       </div>
       {preview && (
@@ -545,20 +559,20 @@ export function Composer() {
           role="dialog"
           aria-modal="true"
           aria-label="图片预览"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-8"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-scrim p-8"
           onClick={() => setPreview(null)}
         >
           <img
             src={`data:${preview.mimeType};base64,${preview.data}`}
             alt="图片预览"
-            className="max-h-full max-w-full rounded-lg object-contain"
+            className="max-h-full max-w-full rounded-control object-contain"
             onClick={(event) => event.stopPropagation()}
           />
           <button
             type="button"
             title="关闭预览"
             aria-label="关闭预览"
-            className="absolute top-4 right-4 rounded-full border border-[var(--line)] bg-[var(--bg-panel)] p-1.5 text-[var(--muted)] hover:text-[var(--text)]"
+            className="absolute top-4 right-4 rounded-full border border-line bg-surface p-1.5 text-ink-muted hover:text-ink"
             onClick={() => setPreview(null)}
           >
             <X size={16} />
@@ -570,15 +584,15 @@ export function Composer() {
           role="dialog"
           aria-modal="true"
           aria-label="文档预览"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-8"
+          className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-scrim p-8"
           onClick={() => setPreviewDoc(null)}
         >
           <div
-            className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--bg-panel)]"
+            className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-control border border-line bg-surface"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center gap-2 border-b border-[var(--line)] px-3 py-2 text-xs text-[var(--text)]">
-              <FileText size={14} className="shrink-0 text-[var(--muted)]" />
+            <div className="flex items-center gap-2 border-b border-line px-3 py-2 text-xs text-ink">
+              <FileText size={14} className="shrink-0 text-ink-muted" />
               <span className="min-w-0 flex-1 truncate" title={previewDoc.name}>
                 {previewDoc.name}
               </span>
@@ -586,13 +600,13 @@ export function Composer() {
                 type="button"
                 title="关闭预览"
                 aria-label="关闭预览"
-                className="rounded p-0.5 text-[var(--muted)] hover:text-[var(--text)]"
+                className="rounded p-0.5 text-ink-muted hover:text-ink"
                 onClick={() => setPreviewDoc(null)}
               >
                 <X size={14} />
               </button>
             </div>
-            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-3 py-2 text-[11px] leading-5 text-[var(--text)]">
+            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-3 py-2 text-xs leading-5 text-ink">
               {previewDoc.content}
             </pre>
           </div>
@@ -603,9 +617,9 @@ export function Composer() {
 }
 
 const ACCENT_CLASS: Record<string, string> = {
-  amber: "text-[var(--warn)]",
-  purple: "text-[var(--purple)]",
-  blue: "text-[var(--info)]",
+  amber: "text-warn",
+  purple: "text-purple",
+  blue: "text-info",
 };
 
 function PlusMenuItem({
@@ -631,15 +645,15 @@ function PlusMenuItem({
     <button
       type="button"
       title={title}
-      className={`mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${
-        active ? "border border-[var(--accent-line)] bg-[var(--bg-raised)] text-[var(--text)]" : "border border-transparent text-[var(--text)] hover:bg-[var(--bg-raised)]"
+      className={`mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-control px-2.5 py-2 text-left text-sm ${
+        active ? "border border-accent-line bg-surface-raised text-ink" : "border border-transparent text-ink hover:bg-surface-raised"
       }`}
       onClick={onClick}
     >
-      <span className={`shrink-0 ${active ? "text-[var(--accent)]" : accent ? ACCENT_CLASS[accent] : "text-[var(--muted)]"}`}>{icon}</span>
+      <span className={`shrink-0 ${active ? "text-accent" : accent ? ACCENT_CLASS[accent] : "text-ink-muted"}`}>{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {badge && (
-        <span className="shrink-0 rounded bg-[var(--ok-soft)] px-1.5 py-0.5 text-[10px] text-[var(--ok)]">{badge}</span>
+        <span className="shrink-0 rounded bg-ok-soft px-1.5 py-0.5 text-2xs text-ok">{badge}</span>
       )}
       {trailing}
     </button>

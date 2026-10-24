@@ -1,4 +1,4 @@
-import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThemeMode, ThinkingLevel } from "@shared/types";
+import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, FlatTreeNode, InstalledResource, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThemeMode, ThinkingLevel } from "@shared/types";
 declare const api: {
     getState: () => Promise<any>;
     openDirectory: () => Promise<any>;
@@ -19,7 +19,7 @@ declare const api: {
     fork: (entryId: string) => Promise<any>;
     clone: () => Promise<any>;
     navigateTree: (targetId: string, summarize?: boolean) => Promise<any>;
-    getTree: (path?: string) => Promise<any>;
+    getTree: (path?: string) => Promise<FlatTreeNode[]>;
     compact: (instructions?: string) => Promise<any>;
     reload: () => Promise<any>;
     listModels: () => Promise<any>;

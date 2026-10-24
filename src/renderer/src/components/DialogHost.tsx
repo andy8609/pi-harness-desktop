@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useAppStore } from "../stores/app-store";
+import { Button, Modal } from "./ui";
+import { cx, inputClass } from "./ui";
 
 /**
- * Modal dialog host for blocking prompts that have no in-transcript home
- * (confirm / input / secret / manual_code / select, e.g. provider login).
+ * 模态对话框宿主：处理没有会话内归属的阻塞式提示
+ * （confirm / input / secret / manual_code / select，例如服务商登录）。
  *
- * Clarification (`questions`) and permission (`permission`) prompts are
- * rendered inline in the chat instead — see `InlineDialogHost`.
+ * 澄清问题（questions）与权限确认（permission）在对话内渲染 —— 见 `InlineDialogHost`。
+ * 改造点：容器改用统一 `Modal` 基座（审计 S8-1），Escape / 点击遮罩均可关闭，按钮改用共用 Button。
  */
 export function DialogHost() {
   const dialog = useAppStore((state) => state.dialog);
@@ -21,62 +23,68 @@ export function DialogHost() {
     setDialog(undefined);
   };
 
+  const isTextInput = dialog.kind === "input" || dialog.kind === "secret" || dialog.kind === "manual_code";
+
+  const footer =
+    dialog.kind === "confirm" ? (
+      <>
+        <Button onClick={() => close(false, false)}>取消</Button>
+        <Button variant="primary" onClick={() => close(false, true)}>
+          确认
+        </Button>
+      </>
+    ) : isTextInput ? (
+      <>
+        <Button onClick={() => close(true)}>取消</Button>
+        <Button variant="primary" onClick={() => close(false, value)}>
+          确定
+        </Button>
+      </>
+    ) : (
+      <Button onClick={() => close(true)}>取消</Button>
+    );
+
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--overlay)] p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-[var(--line)] bg-[var(--bg-panel)] p-5">
-        <h2 className="mb-2 text-lg font-medium whitespace-pre-wrap">{dialog.title}</h2>
-        {dialog.message && <p className="mb-3 text-sm text-[var(--muted)] whitespace-pre-wrap">{dialog.message}</p>}
-        {dialog.kind === "confirm" && (
-          <div className="flex justify-end gap-2">
-            <button className="rounded-lg border border-[var(--line)] px-3 py-1.5" onClick={() => close(false, false)}>
-              取消
+    <Modal
+      title={dialog.title}
+      description={dialog.message}
+      size={dialog.kind === "select" ? "lg" : "md"}
+      onClose={() => close(true)}
+      footer={footer}
+    >
+      {isTextInput && (
+        <input
+          autoFocus
+          aria-label={dialog.title}
+          type={dialog.kind === "secret" ? "password" : "text"}
+          className={inputClass}
+          placeholder={dialog.placeholder}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") close(false, value);
+          }}
+        />
+      )}
+      {dialog.kind === "select" && (
+        <div className="flex flex-col gap-2" role="listbox" aria-label={dialog.title}>
+          {(dialog.options ?? []).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="option"
+              aria-selected={false}
+              className={cx(
+                "flex flex-col rounded-control border border-line px-3 py-2 text-left transition-colors duration-[var(--motion-instant)] hover:border-accent hover:bg-surface-raised",
+              )}
+              onClick={() => close(false, option.id)}
+            >
+              <span className="text-sm text-ink">{option.label}</span>
+              {option.description && <span className="mt-0.5 text-xs text-ink-muted">{option.description}</span>}
             </button>
-            <button className="rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-[var(--on-accent)]" onClick={() => close(false, true)}>
-              确认
-            </button>
-          </div>
-        )}
-        {(dialog.kind === "input" || dialog.kind === "secret" || dialog.kind === "manual_code") && (
-          <div>
-            <input
-              autoFocus
-              type={dialog.kind === "secret" ? "password" : "text"}
-              className="mb-3 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
-              placeholder={dialog.placeholder}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") close(false, value);
-              }}
-            />
-            <div className="flex justify-end gap-2">
-              <button className="rounded-lg border border-[var(--line)] px-3 py-1.5" onClick={() => close(true)}>
-                取消
-              </button>
-              <button className="rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-[var(--on-accent)]" onClick={() => close(false, value)}>
-                确定
-              </button>
-            </div>
-          </div>
-        )}
-        {dialog.kind === "select" && (
-          <div className="space-y-2">
-            {(dialog.options ?? []).map((option) => (
-              <button
-                key={option.id}
-                className="block w-full rounded-lg border border-[var(--line)] px-3 py-2 text-left hover:border-[var(--accent)]"
-                onClick={() => close(false, option.id)}
-              >
-                <div>{option.label}</div>
-                {option.description && <div className="text-xs text-[var(--muted)]">{option.description}</div>}
-              </button>
-            ))}
-            <button className="mt-2 text-sm text-[var(--muted)]" onClick={() => close(true)}>
-              取消
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   );
 }

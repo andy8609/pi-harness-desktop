@@ -7,6 +7,7 @@ import { useFollowScroll } from "../hooks/useFollowScroll";
 import { contentText, thinkingText, toolCalls } from "../lib/text";
 import { summarizeTurn, type TurnOperationSummary } from "../lib/tool-summary";
 import { useAppStore } from "../stores/app-store";
+import { Button, EmptyState } from "./ui";
 import { ToolActivityGroup, type ToolEntry } from "./ToolActivityGroup";
 import { ToolCallCard } from "./ToolCallCard";
 import { WatchdogMessage } from "./SubagentPanel";
@@ -20,7 +21,7 @@ function joinList(items: string[], limit = 8): string {
 function TurnFileSummary({ summary }: { summary: TurnOperationSummary }) {
   if (summary.reads.length === 0 && summary.writes.length === 0 && summary.commands.length === 0) return null;
   return (
-    <div className="mt-2 space-y-0.5 rounded-lg border border-[var(--line)] bg-[var(--bg-code)] px-3 py-2 text-[11px] leading-5 text-[var(--muted)]">
+    <div className="mt-2 space-y-0.5 rounded-control border border-line bg-surface-muted px-3 py-2 text-xs leading-5 text-ink-muted">
       {summary.reads.length > 0 && <div>读取：{joinList(summary.reads)}</div>}
       {summary.writes.length > 0 && <div>修改/写入：{joinList(summary.writes)}</div>}
       {summary.commands.length > 0 && <div>运行：{joinList(summary.commands)}</div>}
@@ -44,16 +45,16 @@ function MessageBody({
       return <WatchdogMessage details={message.details} summary={text} />;
     }
     return (
-      <details className="rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] px-3 py-2 text-sm text-[var(--muted)]">
-        <summary className="cursor-pointer text-[var(--accent)]">{message.customType || "custom"}</summary>
-        <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[12px]">{text}</pre>
+      <details className="rounded-control border border-line bg-surface px-3 py-2 text-sm text-ink-muted">
+        <summary className="cursor-pointer text-accent">{message.customType || "custom"}</summary>
+        <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs">{text}</pre>
       </details>
     );
   }
   if (message.role === "compactionSummary") {
     return (
-      <details className="rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] px-3 py-2 text-sm text-[var(--muted)]">
-        <summary className="cursor-pointer text-[var(--accent)]">上下文压缩摘要</summary>
+      <details className="rounded-control border border-line bg-surface px-3 py-2 text-sm text-ink-muted">
+        <summary className="cursor-pointer text-accent">上下文压缩摘要</summary>
         <div className="mt-2 whitespace-pre-wrap">
           {typeof message.content === "string" ? message.content : contentText(message.content)}
         </div>
@@ -62,8 +63,8 @@ function MessageBody({
   }
   if (message.role === "branchSummary") {
     return (
-      <details className="rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] px-3 py-2 text-sm text-[var(--muted)]">
-        <summary className="cursor-pointer text-[var(--accent)]">分支摘要</summary>
+      <details className="rounded-control border border-line bg-surface px-3 py-2 text-sm text-ink-muted">
+        <summary className="cursor-pointer text-accent">分支摘要</summary>
         <div className="mt-2 whitespace-pre-wrap">
           {typeof message.content === "string" ? message.content : contentText(message.content)}
         </div>
@@ -81,13 +82,13 @@ function MessageBody({
   }
   if (message.role === "bashExecution") {
     return (
-      <div className="rounded-lg border border-[var(--line)] bg-[var(--bg-code)] px-3 py-2 text-sm">
-        <div className="mb-1 flex items-center gap-2 text-[var(--accent)]">
+      <div className="rounded-control border border-line bg-surface-muted px-3 py-2 text-sm">
+        <div className="mb-1 flex items-center gap-2 text-accent">
           <TerminalWindow size={14} />
           <code>{message.command}</code>
-          <span className="text-[var(--muted)]">exit {message.exitCode ?? "?"}</span>
+          <span className="text-ink-muted">exit {message.exitCode ?? "?"}</span>
         </div>
-        <pre className="max-h-64 overflow-auto text-[12px] text-[var(--text)]">{message.output}</pre>
+        <pre className="max-h-64 overflow-auto text-xs text-ink">{message.output}</pre>
       </div>
     );
   }
@@ -124,10 +125,10 @@ function MessageBody({
     <div>
       {!hideThinking && thinking && (
         <details
-          className="mb-2 rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] px-3 py-2 text-xs text-[var(--muted)]"
+          className="mb-2 rounded-control border border-line bg-surface px-3 py-2 text-xs text-ink-muted"
           open={streaming ? true : undefined}
         >
-          <summary className="cursor-pointer text-[var(--accent)]">思考过程</summary>
+          <summary className="cursor-pointer text-accent">思考过程</summary>
           <div className="mt-2 whitespace-pre-wrap">{thinking}</div>
         </details>
       )}
@@ -138,7 +139,7 @@ function MessageBody({
       )}
       {(tools.length > 0 || unmatched.length > 0) && <TurnFileSummary summary={turn} />}
       <ToolActivityGroup tools={toolEntries} running={streaming} />
-      {message.errorMessage && <div className="mt-2 text-sm text-[var(--danger)]">{message.errorMessage}</div>}
+      {message.errorMessage && <div className="mt-2 text-sm text-danger">{message.errorMessage}</div>}
     </div>
   );
 }
@@ -180,26 +181,11 @@ function IconAction({
       type="button"
       title={title}
       aria-label={title}
-      className="rounded-md border border-transparent p-1 text-[var(--muted)] hover:border-[var(--line)] hover:text-[var(--text)]"
+      className="rounded-control border border-transparent p-1 text-ink-muted hover:border-line hover:text-ink"
       onClick={onClick}
     >
       {children}
     </button>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-      <div className="text-base font-medium text-[var(--text)]">开始一段新对话</div>
-      <div className="max-w-md text-sm leading-6 text-[var(--muted)]">
-        在下方输入消息开始。使用 <code className="text-[var(--accent)]">/</code> 触发命令，
-        <code className="text-[var(--accent)]">@</code> 引用项目文件，
-        <code className="text-[var(--accent)]">!</code> 运行 bash。
-        <br />
-        若模型列表为空，请先到「模型」页配置自定义提供商。
-      </div>
-    </div>
   );
 }
 
@@ -249,7 +235,21 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
   };
 
   if (messages.length === 0 && !busy) {
-    return <EmptyState />;
+    return (
+      <div className="flex h-full items-center justify-center px-6">
+        <EmptyState
+          className="w-full max-w-lg"
+          title="开始一段新对话"
+          description={
+            <>
+              在下方输入消息开始。使用 <code className="text-accent">/</code> 触发命令，
+              <code className="text-accent">@</code> 引用项目文件，
+              <code className="text-accent">!</code> 运行 bash。若模型列表为空，请先到「模型」页配置提供商。
+            </>
+          }
+        />
+      </div>
+    );
   }
 
   return (
@@ -269,7 +269,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
                 <div
                   className={
                     isUser
-                      ? "max-w-[85%] rounded-2xl border border-[var(--line)] bg-[var(--user-bubble)] px-3.5 py-2.5"
+                      ? "max-w-[85%] rounded-panel border border-line bg-user-bubble px-3.5 py-2.5"
                       : "w-full"
                   }
                 >
@@ -279,7 +279,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
                         <textarea
                           autoFocus
                           rows={Math.min(12, Math.max(3, editValue.split("\n").length))}
-                          className="w-full resize-none rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                          className="w-full resize-none rounded-control border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                           value={editValue}
                           disabled={saving}
                           onChange={(event) => setEditValue(event.target.value)}
@@ -292,26 +292,21 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
                           }}
                         />
                         <div className="mt-2 flex justify-end gap-2">
-                          <button
-                            type="button"
-                            className="rounded-lg border border-[var(--line)] px-3 py-1 text-xs"
-                            disabled={saving}
-                            onClick={() => setEditingId(null)}
-                          >
+                          <Button size="sm" variant="secondary" disabled={saving} onClick={() => setEditingId(null)}>
                             取消
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg bg-[var(--accent-bg)] px-3 py-1 text-xs text-[var(--on-accent)] disabled:opacity-50"
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
                             disabled={saving || !editValue.trim()}
                             onClick={() => void saveEdit(item.message)}
                           >
                             {saving ? "重发中…" : "保存并重发"}
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ) : (
-                      <div className="whitespace-pre-wrap text-sm text-[var(--text)]">{text}</div>
+                      <div className="whitespace-pre-wrap text-sm text-ink">{text}</div>
                     )
                   ) : (
                     <MessageBody message={item.message} toolResults={item.toolResults} streaming={streaming} />
@@ -342,7 +337,7 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
           type="button"
           title="回到最新"
           aria-label="回到最新"
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-[var(--line)] bg-[var(--bg-panel)] p-2 text-[var(--text)] shadow-lg hover:border-[var(--accent)]"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-pill border border-line bg-surface p-2 text-ink shadow-raised hover:border-accent"
           onClick={jumpToLatest}
         >
           <ArrowDown size={16} />

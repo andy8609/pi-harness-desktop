@@ -2,6 +2,7 @@ import { CaretDown, CaretRight, File as FileIcon, Folder, FolderOpen, X } from "
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import type { FileContent, FileEntry } from "@shared/types";
 import { useAppStore } from "../stores/app-store";
+import { Button, EmptyState, SkeletonList } from "./ui";
 
 /**
  * 树形单行：目录点击展开/折叠（首次展开懒加载子项），文件点击打开预览，
@@ -42,7 +43,7 @@ function TreeRow({
     <div>
       <button
         type="button"
-        className="flex w-full items-center gap-1 py-1 pr-2 text-left text-xs text-[var(--text)] hover:bg-[var(--bg-raised)]"
+        className="flex w-full items-center gap-1 py-1 pr-2 text-left text-xs text-ink hover:bg-surface-raised"
         style={{ paddingLeft: 8 + depth * 14 }}
         title={entry.relative}
         onClick={() => (entry.isDir ? void toggle() : onOpenFile(entry))}
@@ -50,28 +51,28 @@ function TreeRow({
       >
         {entry.isDir ? (
           expanded ? (
-            <CaretDown size={11} className="shrink-0 text-[var(--muted)]" />
+            <CaretDown size={11} className="shrink-0 text-ink-muted" />
           ) : (
-            <CaretRight size={11} className="shrink-0 text-[var(--muted)]" />
+            <CaretRight size={11} className="shrink-0 text-ink-muted" />
           )
         ) : (
           <span className="w-[11px] shrink-0" />
         )}
         {entry.isDir ? (
           expanded ? (
-            <FolderOpen size={13} className="shrink-0 text-[var(--accent)]" />
+            <FolderOpen size={13} className="shrink-0 text-accent" />
           ) : (
-            <Folder size={13} className="shrink-0 text-[var(--accent)]" />
+            <Folder size={13} className="shrink-0 text-accent" />
           )
         ) : (
-          <FileIcon size={13} className="shrink-0 text-[var(--muted)]" />
+          <FileIcon size={13} className="shrink-0 text-ink-muted" />
         )}
         <span className="truncate">{entry.name}</span>
       </button>
       {entry.isDir && expanded && (
         <div>
           {loading ? (
-            <div className="py-1 text-[10px] text-[var(--muted)]" style={{ paddingLeft: 22 + depth * 14 }}>
+            <div className="py-1 text-2xs text-ink-muted" style={{ paddingLeft: 22 + depth * 14 }}>
               加载中…
             </div>
           ) : (
@@ -165,19 +166,38 @@ export function FileBrowser() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-auto">
-        {error && <div className="px-3 py-2 text-xs text-[var(--danger)]">{error}</div>}
-        {loading && <div className="px-3 py-2 text-xs text-[var(--muted)]">加载中…</div>}
-        {!loading && entries.length === 0 && !error && (
-          <div className="px-3 py-2 text-xs text-[var(--muted)]">空目录</div>
+        {loading && (
+          <div className="p-2">
+            <SkeletonList rows={4} />
+          </div>
         )}
-        {entries.map((entry) => (
+        {!loading && error && (
+          <div className="p-2">
+            <EmptyState
+              compact
+              title="目录加载失败"
+              description={error}
+              action={
+                <Button size="sm" onClick={() => void load()}>
+                  重试
+                </Button>
+              }
+            />
+          </div>
+        )}
+        {!loading && !error && entries.length === 0 && (
+          <div className="p-2">
+            <EmptyState compact title="目录为空" description="这个目录下没有可显示的文件。" />
+          </div>
+        )}
+        {!loading && entries.map((entry) => (
           <TreeRow key={entry.path} entry={entry} depth={0} onOpenFile={openFile} onContextMenu={openMenu} />
         ))}
       </div>
 
       {menu && (
         <div
-          className="fixed z-50 min-w-[140px] rounded-lg border border-[var(--line)] bg-[var(--bg-panel)] py-1 shadow-xl"
+          className="fixed z-[var(--z-popover)] min-w-[140px] rounded-control border border-line bg-surface py-1 shadow-floating"
           style={{
             left: Math.min(menu.x, window.innerWidth - 150),
             top: Math.min(menu.y, window.innerHeight - 40),
@@ -188,7 +208,7 @@ export function FileBrowser() {
         >
           <button
             type="button"
-            className="block w-full px-3 py-1.5 text-left text-xs text-[var(--text)] hover:bg-[var(--bg-raised)]"
+            className="block w-full px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-raised"
             onClick={addReference}
           >
             添加为引用
@@ -197,26 +217,26 @@ export function FileBrowser() {
       )}
 
       {selected && (
-        <div className="flex max-h-[60%] min-h-0 flex-col border-t border-[var(--line)]">
-          <div className="flex items-center gap-2 border-b border-[var(--line)] px-3 py-1.5 text-xs">
-            <FolderOpen size={13} className="shrink-0 text-[var(--accent)]" />
-            <span className="min-w-0 flex-1 truncate text-[var(--muted)]" title={selected.relative}>
+        <div className="flex max-h-[60%] min-h-0 flex-col border-t border-line">
+          <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-xs">
+            <FolderOpen size={13} className="shrink-0 text-accent" />
+            <span className="min-w-0 flex-1 truncate text-ink-muted" title={selected.relative}>
               {selected.relative}
             </span>
             <button
               type="button"
               title="关闭预览"
               aria-label="关闭预览"
-              className="rounded p-0.5 text-[var(--muted)] hover:text-[var(--text)]"
+              className="rounded p-0.5 text-ink-muted hover:text-ink"
               onClick={() => setSelected(null)}
             >
               <X size={13} />
             </button>
           </div>
           {selected.binary ? (
-            <div className="px-3 py-2 text-xs text-[var(--muted)]">二进制文件，暂不支持预览。</div>
+            <div className="px-3 py-2 text-xs text-ink-muted">二进制文件，暂不支持预览。</div>
           ) : (
-            <pre className="min-h-0 flex-1 overflow-auto px-3 py-2 text-[11px] leading-5 text-[var(--text)]">
+            <pre className="min-h-0 flex-1 overflow-auto px-3 py-2 text-xs leading-5 text-ink">
               {selected.content}
               {selected.truncated ? "\n\n…（文件过大，已截断）" : ""}
             </pre>

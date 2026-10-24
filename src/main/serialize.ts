@@ -8,7 +8,7 @@ import type {
   SessionSnapshot,
   SessionUsage,
   ThinkingLevel,
-  TreeNode,
+  FlatTreeNode,
   WatchdogReport,
 } from "@shared/types";
 
@@ -191,19 +191,37 @@ function summarizeEntry(entry: Record<string, unknown>): string {
   return String(entry.type ?? "entry");
 }
 
-export function serializeTree(nodes: unknown[]): TreeNode[] {
-  return (nodes ?? []).map((node) => {
+/**
+ * 把会话树扁平化为数组（深度优先前序，父节点总在子节点之前）。
+ *
+ * 使用显式栈而不是递归：既避开超深会话的调用栈风险，也让 IPC 传输不再受
+ * contextBridge 的 1000 层嵌套限制。顺序与原树保持一致，渲染层可无损重建。
+ */
+export function flattenTree(nodes: unknown[]): FlatTreeNode[] {
+  const out: FlatTreeNode[] = [];
+  const stack: Array<{ node: unknown; parentId: string | null }> = [];
+
+  const roots = nodes ?? [];
+  for (let i = roots.length - 1; i >= 0; i -= 1) stack.push({ node: roots[i], parentId: null });
+
+  while (stack.length) {
+    const { node, parentId } = stack.pop()!;
     const item = node as { entry?: Record<string, unknown>; children?: unknown[]; label?: string };
     const entry = item.entry ?? {};
-    return {
-      id: String(entry.id ?? ""),
+    const id = String(entry.id ?? "");
+    out.push({
+      id,
       type: String(entry.type ?? "unknown"),
       timestamp: typeof entry.timestamp === "string" ? entry.timestamp : undefined,
       label: item.label,
       summary: summarizeEntry(entry),
-      children: serializeTree(item.children ?? []),
-    };
-  });
+      parentId,
+    });
+    const children = item.children ?? [];
+    for (let i = children.length - 1; i >= 0; i -= 1) stack.push({ node: children[i], parentId: id });
+  }
+
+  return out;
 }
 
 export function collectUsage(messages: ChatMessage[]): SessionUsage {

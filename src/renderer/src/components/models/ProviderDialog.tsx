@@ -127,6 +127,15 @@ export function ProviderDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Escape 关闭：保存中不响应，避免中断写入
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, saving]);
+
   const applyService = (next: string) => {
     setService(next);
     const nextPreset = SERVICE_PRESETS.find((item) => item.id === next);
@@ -174,25 +183,25 @@ export function ProviderDialog({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4">
+    <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-scrim p-4">
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-[var(--line)] bg-[var(--bg-panel)]"
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-surface border border-line bg-surface shadow-floating"
       >
-        <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           <h2 className="text-base font-medium">{editingId ? "编辑服务" : "添加 AI 服务"}</h2>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-lg border border-[var(--line)] px-2 py-1 text-xs hover:border-[var(--accent)]"
+              className="rounded-control border border-line px-2 py-1 text-xs hover:border-accent"
               onClick={() => setAdvancedOpen((value) => !value)}
             >
               {advancedOpen ? "收起高级" : "高级设置"}
             </button>
             <button
               type="button"
-              className="rounded-lg border border-[var(--line)] px-2 py-1 text-xs"
+              className="rounded-control border border-line px-2 py-1 text-xs"
               disabled={saving}
               onClick={onClose}
             >
@@ -200,7 +209,7 @@ export function ProviderDialog({
             </button>
             <button
               type="button"
-              className="rounded-lg bg-[var(--accent-bg)] px-3 py-1 text-xs text-[var(--on-accent)] disabled:opacity-50"
+              className="rounded-control bg-accent-fill px-3 py-1 text-xs text-on-accent disabled:opacity-50"
               disabled={saving}
               onClick={() => void save()}
             >
@@ -225,20 +234,20 @@ export function ProviderDialog({
                   <input
                     type="password"
                     autoFocus
-                    className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 font-mono text-xs outline-none focus:border-[var(--accent)]"
+                    className="mt-1 w-full rounded border border-line bg-canvas px-2 py-1 font-mono text-xs outline-none focus:border-accent"
                     value={apiKey}
                     placeholder={editingId && initial?.apiKey ? "留空则保留原有密钥" : "sk-…"}
                     onChange={(event) => setApiKey(event.target.value)}
                   />
                 </label>
-                <div className="text-xs text-[var(--muted)] md:col-span-2">{resolvedBaseUrl}</div>
+                <div className="text-xs text-ink-muted md:col-span-2">{resolvedBaseUrl}</div>
               </>
             ) : (
               <>
                 <label className="text-sm">
                   提供商 ID
                   <input
-                    className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 outline-none focus:border-[var(--accent)]"
+                    className="mt-1 w-full rounded border border-line bg-canvas px-2 py-1 outline-none focus:border-accent"
                     value={providerId}
                     placeholder="例如 my-gateway"
                     onChange={(event) => setProviderId(event.target.value)}
@@ -247,7 +256,7 @@ export function ProviderDialog({
                 <label className="text-sm">
                   名称
                   <input
-                    className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 outline-none focus:border-[var(--accent)]"
+                    className="mt-1 w-full rounded border border-line bg-canvas px-2 py-1 outline-none focus:border-accent"
                     value={name}
                     placeholder="显示名称"
                     onChange={(event) => setName(event.target.value)}
@@ -256,7 +265,7 @@ export function ProviderDialog({
                 <label className="text-sm md:col-span-2">
                   Base URL
                   <input
-                    className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 font-mono text-xs outline-none focus:border-[var(--accent)]"
+                    className="mt-1 w-full rounded border border-line bg-canvas px-2 py-1 font-mono text-xs outline-none focus:border-accent"
                     value={baseUrl}
                     placeholder="https://api.example.com/v1"
                     onChange={(event) => setBaseUrl(event.target.value)}
@@ -266,7 +275,7 @@ export function ProviderDialog({
                   API Key
                   <input
                     type="password"
-                    className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 font-mono text-xs outline-none focus:border-[var(--accent)]"
+                    className="mt-1 w-full rounded border border-line bg-canvas px-2 py-1 font-mono text-xs outline-none focus:border-accent"
                     value={apiKey}
                     placeholder={editingId && initial?.apiKey ? "留空则保留原有密钥" : "sk-…"}
                     onChange={(event) => setApiKey(event.target.value)}
@@ -275,7 +284,7 @@ export function ProviderDialog({
                 <label className="text-sm">
                   API 风格
                   <select
-                    className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1"
+                    className="mt-1 w-full rounded border border-line bg-canvas px-2 py-1"
                     value={api}
                     onChange={(event) => setApi(event.target.value)}
                   >

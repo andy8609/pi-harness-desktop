@@ -198,6 +198,24 @@ export interface SessionListItem {
   firstMessage: string;
 }
 
+/**
+ * 会话树的传输格式：扁平节点。
+ *
+ * 不用嵌套结构是因为 Electron 的 contextBridge 序列化有 1000 层深度上限，
+ * 长会话的分支链会超过该限制并报 “recursion depth exceeded”。
+ * 渲染层用 `lib/tree.ts` 的 `buildTree()` 重建层级。
+ */
+export interface FlatTreeNode {
+  id: string;
+  type: string;
+  timestamp?: string;
+  label?: string;
+  summary: string;
+  /** 父节点 id；根节点为 null。 */
+  parentId: string | null;
+}
+
+/** 渲染层重建后的会话树节点（带子节点）。 */
 export interface TreeNode {
   id: string;
   type: string;

@@ -1,0 +1,206 @@
+/*
+ * Pi Desktop 设计令牌（单一取值来源）
+ *
+ * 结构参照 TKCode.Arc 的令牌分组（见 docs/ui/ui-spec-checklist.md 第 0 节的语义移植说明）：
+ * Surfaces / Text / Borders / Accent / Status / Focus / Shape / Size / Spacing / Type / Elevation / Motion / Layer
+ *
+ * 规则：
+ * 1. 组件不得写字面色值、字面字号、字面圆角，一律引用本文件中的变量或由 @theme 生成的语义类。
+ * 2. 深色为默认（:root），浅色只覆盖发生变化的变量（:root[data-theme="light"]）。
+ * 3. 语义别名（--surface / --fg / --border …）只声明一次，随主题自动重算。
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---------- Surfaces（页面 / 卡片 / 井 / 抬升 / 遮罩） ---------- */
+  --bg: #12140f;
+  --bg-panel: #1a1d16;
+  --bg-raised: #22261c;
+  --bg-code: #10130d;
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  /* ---------- Text（三阶强调） ---------- */
+  --text: #ece7d5;
+  --text-soft: #cfc8b0;
+  --muted: #9a937c;
+
+  /* ---------- Borders ---------- */
+  --line: #33392a;
+  --line-strong: #3b4132;
+  --line-subtle: rgba(255, 255, 255, 0.06);
+
+  /* ---------- Accent ---------- */
+  --accent: #c4d45a;
+  --accent-bg: #c4d45a;
+  --accent-bg-strong: #d7e56a;
+  --accent-soft: rgba(196, 212, 90, 0.16);
+  --accent-line: rgba(196, 212, 90, 0.5);
+  --accent-strong: #d7e56a;
+  --on-accent: #16180f;
+  --on-solid: #16180f;
+
+  /* ---------- Status ---------- */
+  --danger: #e07a5f;
+  --danger-soft: #2a1612;
+  --ok: #8fbf7a;
+  --ok-soft: #2a3a22;
+  --warn: #e0a45a;
+  --warn-soft: rgba(224, 164, 90, 0.18);
+  --info: #7eb8c9;
+  --info-soft: rgba(126, 184, 201, 0.18);
+  --purple: #b48ec9;
+  --purple-soft: rgba(180, 142, 201, 0.18);
+
+  /* ---------- 会话气泡 ---------- */
+  --user-bubble: #262b1f;
+
+  /* ---------- Focus ---------- */
+  --focus-ring: #c4d45a;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* ---------- Elevation ---------- */
+  --elevation-resting: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --elevation-raised: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --elevation-floating: 0 12px 32px rgba(0, 0, 0, 0.55);
+
+  /* ---------- 语义别名（不随主题单独覆盖） ---------- */
+  --surface: var(--bg-panel);
+  --surface-muted: var(--bg-code);
+  --surface-raised: var(--bg-raised);
+  --scrim: var(--overlay);
+  --fg: var(--text);
+  --fg-secondary: var(--text-soft);
+  --fg-muted: var(--muted);
+  --border: var(--line);
+  --border-strong: var(--line-strong);
+  --border-subtle: var(--line-subtle);
+  --accent-subtle: var(--accent-soft);
+
+  /* ---------- Shape（Web 尺度：控件 8 / 面板 12 / 大面 16 / 胶囊） ---------- */
+  --corner-control: 8px;
+  --corner-panel: 12px;
+  --corner-surface: 16px;
+  --corner-pill: 999px;
+
+  /* ---------- Size（桌面紧凑档控件高度与图标尺寸） ---------- */
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 36px;
+  --glyph-sm: 14px;
+  --glyph-md: 16px;
+  --glyph-lg: 20px;
+
+  /* ---------- Spacing（4px 基准刻度，与 Arc 的 Space1–Space24 同源） ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ---------- Type ---------- */
+  --fs-2xs: 10px; /* 仅限徽章、角标、计数（偏差项，见文档） */
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-base: 16px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
+  --fs-2xl: 28px;
+
+  --lh-2xs: 14px;
+  --lh-xs: 16px;
+  --lh-sm: 20px;
+  --lh-base: 24px;
+  --lh-lg: 26px;
+  --lh-xl: 28px;
+  --lh-2xl: 34px;
+
+  --typeface-sans: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --typeface-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --typeface-display: var(--typeface-sans);
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --tracking-display: -0.01em;
+
+  /* ---------- Motion ---------- */
+  --motion-instant: 120ms;
+  --motion-fast: 160ms;
+  --motion-exit: 180ms;
+  --motion-standard: 240ms;
+  --motion-considered: 480ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---------- Layer ---------- */
+  --z-panel: 10;
+  --z-popover: 40;
+  --z-modal: 60;
+  --z-toast: 80;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f7f6f1;
+  --bg-panel: #ffffff;
+  --bg-raised: #f0eee6;
+  --bg-code: #f5f2e8;
+  --overlay: rgba(20, 18, 10, 0.45);
+
+  --text: #262b20;
+  --text-soft: #4a503f;
+  --muted: #716d5c;
+
+  --line: #e3dfd2;
+  --line-strong: #cec8b6;
+  --line-subtle: rgba(0, 0, 0, 0.05);
+
+  --accent: #5f7016;
+  --accent-bg: #c9d964;
+  --accent-bg-strong: #b8ca4e;
+  --accent-soft: rgba(95, 112, 22, 0.13);
+  --accent-line: rgba(95, 112, 22, 0.4);
+  --accent-strong: #4a5810;
+  --on-accent: #1a1e0c;
+  --on-solid: #ffffff;
+
+  --danger: #b5502f;
+  --danger-soft: #f8e3da;
+  --ok: #4c7a35;
+  --ok-soft: #e4efd9;
+  --warn: #96661c;
+  --warn-soft: #f6ead7;
+  --info: #2f6f7d;
+  --info-soft: #e2eff1;
+  --purple: #6f4f8c;
+  --purple-soft: #eee7f5;
+
+  --user-bubble: #ece9dd;
+
+  --focus-ring: #5f7016;
+
+  --elevation-resting: 0 1px 2px rgba(31, 27, 15, 0.08);
+  --elevation-raised: 0 4px 12px rgba(31, 27, 15, 0.1);
+  --elevation-floating: 0 12px 32px rgba(31, 27, 15, 0.16);
+}
+
+/* 降低动效：去掉位移与缩放，只保留颜色与透明度变化 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 1ms;
+    --motion-fast: 80ms;
+    --motion-exit: 90ms;
+    --motion-standard: 120ms;
+    --motion-considered: 160ms;
+  }
+}

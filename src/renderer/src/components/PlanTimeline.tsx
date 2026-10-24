@@ -19,22 +19,22 @@ export function PlanTimeline({ state, isRunning }: { state: GpaState; isRunning?
       : `计划 ${completed}/${items.length} 已完成`;
 
   return (
-    <section className="mb-2 rounded-lg border border-[var(--line)] bg-[var(--bg-panel)]">
+    <section className="rounded-control border border-line bg-surface">
       <button
         type="button"
         aria-expanded={expanded}
         className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs"
         onClick={() => setExpanded((value) => !value)}
       >
-        <span className="text-[var(--accent)]">●</span>
-        <strong className="shrink-0 text-[var(--text)]">Updated Plan</strong>
-        <span className="min-w-0 flex-1 truncate text-[var(--muted)]">{label}</span>
-        <span className="shrink-0 text-[var(--muted)]">
+        <span className="text-accent">●</span>
+        <strong className="shrink-0 text-ink">Updated Plan</strong>
+        <span className="min-w-0 flex-1 truncate text-ink-muted">{label}</span>
+        <span className="shrink-0 text-ink-muted">
           {completed}/{items.length}
         </span>
       </button>
       {expanded && (
-        <div className="border-t border-[var(--line)] px-3 py-2">
+        <div className="border-t border-line px-3 py-2">
           {items.map((item) => (
             <PlanRow key={item.id} item={item} currentId={current?.id} running={Boolean(isRunning)} />
           ))}
@@ -49,19 +49,19 @@ function PlanRow({ item, currentId, running }: { item: PlanTask; currentId?: str
   return (
     <div className="flex items-start gap-2 py-0.5 text-xs">
       {item.done ? (
-        <CheckCircle size={13} className="mt-0.5 shrink-0 text-[var(--ok)]" />
+        <CheckCircle size={13} className="mt-0.5 shrink-0 text-ok" />
       ) : active && running ? (
-        <CircleNotch size={13} className="mt-0.5 shrink-0 animate-spin text-[var(--accent)]" />
+        <CircleNotch size={13} className="mt-0.5 shrink-0 animate-spin text-accent" />
       ) : (
-        <Circle size={13} className="mt-0.5 shrink-0 text-[var(--muted)]" />
+        <Circle size={13} className="mt-0.5 shrink-0 text-ink-muted" />
       )}
       <span
         className={
           item.done
-            ? "text-[var(--muted)] line-through"
+            ? "text-ink-muted line-through"
             : active
-              ? "text-[var(--text)]"
-              : "text-[var(--muted)]"
+              ? "text-ink"
+              : "text-ink-muted"
         }
       >
         {item.id}: {item.title}

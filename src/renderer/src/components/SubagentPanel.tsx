@@ -5,15 +5,16 @@ import { collectDelegations } from "../lib/subagent-topology";
 import { formatElapsed } from "../lib/text";
 import { useAppStore } from "../stores/app-store";
 import { ToolCallCard } from "./ToolCallCard";
+import { EmptyState } from "./ui";
 
 function StatusDot({ status }: { status: "running" | "done" | "failed" }) {
   if (status === "running") {
-    return <CircleNotch size={13} className="shrink-0 animate-spin text-[var(--accent)]" />;
+    return <CircleNotch size={13} className="shrink-0 animate-spin text-accent" />;
   }
   if (status === "failed") {
-    return <XCircle size={13} className="shrink-0 text-[var(--danger)]" />;
+    return <XCircle size={13} className="shrink-0 text-danger" />;
   }
-  return <Circle size={13} className="shrink-0 text-[var(--ok)]" />;
+  return <Circle size={13} className="shrink-0 text-ok" />;
 }
 
 function asWatchdogReport(value: unknown, fallbackSummary: string): WatchdogReport | undefined {
@@ -56,31 +57,31 @@ export function WatchdogMessage({
   const preview = text.split("\n").find((line) => line.trim()) ?? "巡查子代理";
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--bg-panel)]">
+    <div className="overflow-hidden rounded-panel border border-line bg-surface">
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--bg-raised)]"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-surface-raised"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >
         <CaretDown
           size={12}
-          className={`shrink-0 text-[var(--muted)] transition-transform ${open ? "" : "-rotate-90"}`}
+          className={`shrink-0 text-ink-muted transition-transform ${open ? "" : "-rotate-90"}`}
         />
         <StatusDot status={status} />
-        <span className="font-medium text-[var(--text)]">
+        <span className="font-medium text-ink">
           巡查子代理{resolved ? ` · 第 ${resolved.round} 轮` : ""}
         </span>
         {resolved && (
-          <span className="text-[var(--muted)]">已运行 {formatElapsed(Math.floor(resolved.elapsedMs / 1000))}</span>
+          <span className="text-ink-muted">已运行 {formatElapsed(Math.floor(resolved.elapsedMs / 1000))}</span>
         )}
-        {status === "running" && <span className="text-[var(--accent)]">查询中</span>}
+        {status === "running" && <span className="text-accent">查询中</span>}
         {!open && (
-          <span className="min-w-0 flex-1 truncate text-[var(--muted)]">{preview}</span>
+          <span className="min-w-0 flex-1 truncate text-ink-muted">{preview}</span>
         )}
       </button>
       {open && (
-        <pre className="whitespace-pre-wrap border-t border-[var(--line)] px-3 py-2 text-[12px] leading-5 text-[var(--text)]">
+        <pre className="whitespace-pre-wrap border-t border-line px-3 py-2 text-xs leading-5 text-ink">
           {text}
         </pre>
       )}
@@ -96,30 +97,32 @@ export function SubagentPanel() {
 
   if (items.length === 0) {
     return (
-      <div className="px-3 py-3 text-xs leading-5 text-[var(--muted)]">
-        当前会话没有检测到子代理/委派调用。
-        <br />
-        主代理连续处理超过 3 分钟时，会自动开启巡查子代理，结果会出现在对话中，可收起。
+      <div className="p-2">
+        <EmptyState
+          compact
+          title="没有检测到子代理调用"
+          description="主代理连续处理超过 3 分钟时会自动开启巡查子代理，结果会出现在对话中并可收起。"
+        />
       </div>
     );
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="max-h-[45%] shrink-0 overflow-auto border-b border-[var(--line)]">
+      <div className="max-h-[45%] shrink-0 overflow-auto border-b border-line">
         {items.map((item) => (
           <button
             key={item.id}
             type="button"
-            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--bg-raised)] ${
-              selected?.id === item.id ? "bg-[var(--bg-raised)]" : ""
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-surface-raised ${
+              selected?.id === item.id ? "bg-surface-raised" : ""
             }`}
             onClick={() => setSelectedId(item.id)}
           >
             <StatusDot status={item.status} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium text-[var(--text)]">{item.name}</span>
-              <span className="block truncate text-[var(--muted)]">{item.label}</span>
+              <span className="block truncate font-medium text-ink">{item.name}</span>
+              <span className="block truncate text-ink-muted">{item.label}</span>
             </span>
           </button>
         ))}
@@ -127,7 +130,7 @@ export function SubagentPanel() {
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {selected && (
           <>
-            <div className="mb-2 flex items-center gap-2 text-xs text-[var(--muted)]">
+            <div className="mb-2 flex items-center gap-2 text-xs text-ink-muted">
               <StatusDot status={selected.status} />
               <span className="truncate">{selected.name}</span>
             </div>

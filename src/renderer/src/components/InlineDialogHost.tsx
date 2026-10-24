@@ -26,17 +26,17 @@ export function InlineDialogHost() {
   if (dialog.kind === "permission") {
     const permission = dialog.permission;
     return (
-      <div className="mx-auto mb-2 max-w-5xl rounded-xl border border-[var(--danger)] bg-[var(--bg-panel)] p-3">
-        <div className="mb-1 flex items-center gap-2 text-sm font-medium text-[var(--text)]">
-          <span className="text-[var(--danger)]">⚠</span>
+      <div className="mx-auto mb-2 max-w-5xl rounded-panel border border-danger bg-surface p-3">
+        <div className="mb-1 flex items-center gap-2 text-sm font-medium text-ink">
+          <span className="text-danger">⚠</span>
           {dialog.title}
         </div>
         {permission && (
           <>
-            <div className="mb-2 text-xs text-[var(--muted)]">
+            <div className="mb-2 text-xs text-ink-muted">
               工具 {permission.toolName} · 风险等级：{permission.risk}
             </div>
-            <pre className="mb-3 max-h-40 overflow-auto rounded border border-[var(--line)] bg-[var(--bg-code)] p-2 text-[11px] text-[var(--text)]">
+            <pre className="mb-3 max-h-40 overflow-auto rounded border border-line bg-surface-muted p-2 text-xs text-ink">
               {permission.detail}
             </pre>
             <div className="flex flex-wrap gap-2">
@@ -44,10 +44,10 @@ export function InlineDialogHost() {
                 <button
                   key={option.id}
                   type="button"
-                  className={`rounded-lg border px-3 py-1.5 text-sm ${
+                  className={`rounded-control border px-3 py-1.5 text-sm ${
                     option.id === "拒绝"
-                      ? "border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)] hover:text-[var(--on-solid)]"
-                      : "border-[var(--line)] hover:border-[var(--accent)]"
+                      ? "border-danger text-danger hover:bg-danger hover:text-on-solid"
+                      : "border-line hover:border-accent"
                   }`}
                   onClick={() => close(false, option.id)}
                 >
@@ -63,14 +63,14 @@ export function InlineDialogHost() {
 
   const questions = dialog.questions ?? [];
   return (
-    <div className="mx-auto mb-2 flex max-h-[60vh] max-w-5xl flex-col rounded-xl border border-[var(--accent)] bg-[var(--bg-panel)] p-3">
-      <div className="mb-2 shrink-0 text-sm font-medium text-[var(--text)]">{dialog.title}</div>
+    <div className="mx-auto mb-2 flex max-h-[60vh] max-w-5xl flex-col rounded-panel border border-accent bg-surface p-3">
+      <div className="mb-2 shrink-0 text-sm font-medium text-ink">{dialog.title}</div>
       {/* 问题列表内部滚动：内容过多时保持标题与操作按钮可见 */}
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {questions.map((question) => (
           <div key={question.id}>
-            <div className="text-sm font-medium text-[var(--text)]">{question.label}</div>
-            <div className="mb-1 text-xs text-[var(--muted)]">{question.prompt}</div>
+            <div className="text-sm font-medium text-ink">{question.label}</div>
+            <div className="mb-1 text-xs text-ink-muted">{question.prompt}</div>
             <div className="flex flex-wrap gap-2">
               {question.options.map((option) => {
                 const selected = answers[question.id] === option.label && !freeText[question.id]?.trim();
@@ -78,10 +78,10 @@ export function InlineDialogHost() {
                   <button
                     key={option.id}
                     type="button"
-                    className={`rounded-lg border px-3 py-1.5 text-sm ${
+                    className={`rounded-control border px-3 py-1.5 text-sm ${
                       selected
-                        ? "border-[var(--accent-bg-strong)] bg-[var(--accent-bg)] text-[var(--on-accent)]"
-                        : "border-[var(--line)] hover:border-[var(--accent)]"
+                        ? "border-accent-fill-strong bg-accent-fill text-on-accent"
+                        : "border-line hover:border-accent"
                     }`}
                     onClick={() =>
                       setAnswers((current) => ({ ...current, [question.id]: option.label }))
@@ -93,7 +93,7 @@ export function InlineDialogHost() {
               })}
             </div>
             <input
-              className="mt-2 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)] outline-none focus:border-[var(--accent)]"
+              className="mt-2 w-full rounded border border-line bg-canvas px-2 py-1 text-xs text-ink outline-none focus:border-accent"
               placeholder="以上都不合适？在此手动输入"
               value={freeText[question.id] ?? ""}
               onChange={(event) =>
@@ -106,14 +106,14 @@ export function InlineDialogHost() {
       <div className="mt-3 flex shrink-0 justify-end gap-2">
         <button
           type="button"
-          className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm"
+          className="rounded-control border border-line px-3 py-1.5 text-sm"
           onClick={() => close(true)}
         >
           取消
         </button>
         <button
           type="button"
-          className="rounded-lg bg-[var(--accent-bg)] px-3 py-1.5 text-sm text-[var(--on-accent)]"
+          className="rounded-control bg-accent-fill px-3 py-1.5 text-sm text-on-accent"
           onClick={() => {
             const merged: Record<string, string> = {};
             for (const question of questions) {

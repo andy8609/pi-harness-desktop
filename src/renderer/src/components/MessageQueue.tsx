@@ -63,14 +63,14 @@ export function MessageQueue() {
     ...followUp.map((text) => ({ text, kind: "followUp" as const })),
   ];
 
-  const actionClass = "rounded p-1 text-[var(--muted)] hover:bg-[var(--bg-raised)] hover:text-[var(--text)]";
+  const actionClass = "rounded p-1 text-ink-muted hover:bg-surface-raised hover:text-ink";
 
   return (
-    <div className="mx-auto mb-1 max-w-5xl rounded-xl border border-[var(--line)] bg-[var(--bg-panel)]">
+    <div className="mx-auto mb-1 max-w-5xl rounded-panel border border-line bg-surface">
       <button
         type="button"
         aria-expanded={open}
-        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-[var(--muted)] hover:text-[var(--text)]"
+        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-ink-muted hover:text-ink"
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <CaretDown size={11} className="shrink-0" /> : <CaretRight size={11} className="shrink-0" />}
@@ -83,12 +83,12 @@ export function MessageQueue() {
           return (
             <div
               key={`${row.kind}-${index}-${row.text}`}
-              className="flex items-center gap-2 border-t border-[var(--line)] px-3 py-1.5"
+              className="flex items-center gap-2 border-t border-line px-3 py-1.5"
             >
               {isEditing ? (
                 <input
                   autoFocus
-                  className="min-w-0 flex-1 rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-0.5 text-xs text-[var(--text)] outline-none focus:border-[var(--accent)]"
+                  className="min-w-0 flex-1 rounded border border-line bg-canvas px-2 py-0.5 text-xs text-ink outline-none focus:border-accent"
                   value={editing.value}
                   onChange={(event) => setEditing({ text: row.text, value: event.target.value })}
                   onKeyDown={(event) => {
@@ -103,11 +103,11 @@ export function MessageQueue() {
                 <>
                   <ListDashes
                     size={13}
-                    className={`shrink-0 ${row.kind === "steer" ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}
+                    className={`shrink-0 ${row.kind === "steer" ? "text-accent" : "text-ink-muted"}`}
                   />
                   <span
                     className={`min-w-0 flex-1 truncate text-xs ${
-                      row.kind === "steer" ? "text-[var(--accent)]" : "text-[var(--text)]"
+                      row.kind === "steer" ? "text-accent" : "text-ink"
                     }`}
                     title={row.kind === "steer" ? `[steer] ${row.text}` : row.text}
                   >
@@ -150,7 +150,7 @@ export function MessageQueue() {
                         title={row.kind === "steer" ? "等待插入当前回合…" : "正在转为 steer…"}
                         aria-label={row.kind === "steer" ? "等待插入当前回合" : "正在转为 steer"}
                       >
-                        <span className="inline-block h-3 w-3 animate-spin rounded-full border border-[var(--accent)] border-t-transparent" />
+                        <span className="inline-block h-3 w-3 animate-spin rounded-full border border-accent border-t-transparent" />
                       </span>
                     )}
                     <button
@@ -166,7 +166,7 @@ export function MessageQueue() {
                       type="button"
                       title="删除"
                       aria-label="删除"
-                      className={`${actionClass} hover:text-[var(--danger)]`}
+                      className={`${actionClass} hover:text-danger`}
                       onClick={() => void mutate({ type: "remove", text: row.text })}
                     >
                       <Trash size={13} />

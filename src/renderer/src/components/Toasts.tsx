@@ -1,20 +1,33 @@
 import { useAppStore } from "../stores/app-store";
+import { cx } from "./ui";
 
+/**
+ * 轻提示：最多同时显示 3 条（上限在 store 的 pushToast 中强制），
+ * 层级使用 `--z-toast`，容器声明 aria-live 以便辅助技术播报结果。
+ */
 export function Toasts() {
   const toasts = useAppStore((state) => state.toasts);
   const dismissToast = useAppStore((state) => state.dismissToast);
+
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-50 flex w-80 flex-col gap-2">
+    <div
+      aria-live="polite"
+      aria-atomic="false"
+      className="pointer-events-none fixed top-4 right-4 z-[var(--z-toast)] flex w-80 flex-col gap-2"
+    >
       {toasts.map((toast) => (
         <button
           key={toast.id}
-          className={`pointer-events-auto rounded-xl border px-3 py-2 text-left text-sm ${
+          type="button"
+          title="点击关闭"
+          className={cx(
+            "pointer-events-auto rounded-panel border px-3 py-2 text-left text-sm shadow-floating",
             toast.type === "error"
-              ? "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]"
+              ? "border-danger bg-danger-soft text-danger"
               : toast.type === "warning"
-                ? "border-[var(--accent)] bg-[var(--bg-raised)] text-[var(--accent)]"
-                : "border-[var(--line)] bg-[var(--bg-panel)] text-[var(--text)]"
-          }`}
+                ? "border-warn bg-warn-soft text-warn"
+                : "border-line bg-surface text-ink",
+          )}
           onClick={() => dismissToast(toast.id)}
         >
           {toast.message}

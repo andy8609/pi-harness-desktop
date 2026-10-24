@@ -28,12 +28,12 @@ export function HeaderEditor({
 }) {
   return (
     <div>
-      <div className="mb-2 text-xs text-[var(--muted)]">自定义请求头（可选）</div>
+      <div className="mb-2 text-xs text-ink-muted">自定义请求头（可选）</div>
       <div className="space-y-2">
         {pairs.map((pair, index) => (
           <div key={index} className="flex gap-2">
             <input
-              className="w-1/3 rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+              className="w-1/3 rounded border border-line bg-canvas px-2 py-1 text-xs outline-none focus:border-accent"
               placeholder="Header 名称"
               value={pair.key}
               onChange={(event) => {
@@ -43,7 +43,7 @@ export function HeaderEditor({
               }}
             />
             <input
-              className="min-w-0 flex-1 rounded border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+              className="min-w-0 flex-1 rounded border border-line bg-canvas px-2 py-1 text-xs outline-none focus:border-accent"
               placeholder="值"
               value={pair.value}
               onChange={(event) => {
@@ -56,7 +56,7 @@ export function HeaderEditor({
               type="button"
               title="删除"
               aria-label="删除"
-              className="shrink-0 rounded border border-[var(--line)] px-2 text-[var(--muted)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+              className="shrink-0 rounded border border-line px-2 text-ink-muted hover:border-danger hover:text-danger"
               onClick={() => onChange(pairs.filter((_, i) => i !== index))}
             >
               <Trash size={13} />
@@ -66,7 +66,7 @@ export function HeaderEditor({
       </div>
       <button
         type="button"
-        className="mt-2 flex items-center gap-1 rounded border border-[var(--line)] px-2 py-1 text-xs hover:border-[var(--accent)]"
+        className="mt-2 flex items-center gap-1 rounded border border-line px-2 py-1 text-xs hover:border-accent"
         onClick={() => onChange([...pairs, { key: "", value: "" }])}
       >
         <Plus size={12} />

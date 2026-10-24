@@ -66,6 +66,8 @@ interface AppState {
   modelsFile?: { path: string; file: ModelsFile; raw: string; error?: string };
   settings: DesktopSettings;
   appVersion: string;
+  /** 首次引导是否完成：完成前界面显示骨架，避免「未打开项目」空态闪烁。 */
+  bootstrapped: boolean;
   theme: ThemeMode;
   commands: SlashCommand[];
   tree: TreeNode[];
@@ -171,6 +173,7 @@ export const useAppStore = create<AppState>((set) => ({
   providers: [],
   settings: {},
   appVersion: "",
+  bootstrapped: false,
   theme: loadThemeMode(),
   commands: [],
   tree: [],
@@ -363,7 +366,11 @@ export const useAppStore = create<AppState>((set) => ({
   setDialog: (dialog) => set({ dialog }),
   pushToast: (type, message) => {
     const id = toastId++;
-    set((state) => ({ toasts: [...state.toasts, { id, type, message }] }));
+    set((state) => {
+      // 去重 + 上限 3 条：同一文案不堆叠，旧条目自动汰出（审计 S8-3）
+      const others = state.toasts.filter((toast) => toast.message !== message);
+      return { toasts: [...others, { id, type, message }].slice(-3) };
+    });
     scheduleToastDismiss(id, type);
   },
   dismissToast: (id) => {
@@ -393,6 +400,7 @@ export async function bootstrapApp(): Promise<void> {
     settings,
     commands,
     appVersion,
+    bootstrapped: true,
   });
 }
 

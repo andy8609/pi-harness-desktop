@@ -27,7 +27,7 @@ import {
   type SlashCommand,
   type StreamEvent,
   type ThinkingLevel,
-  type TreeNode,
+  type FlatTreeNode,
   type WatchdogReport,
 } from "@shared/types";
 import {
@@ -150,7 +150,7 @@ import {
   toNpmSource,
   type PackageContext,
 } from "./package-ops";
-import { buildSnapshot, collectDisplayMessages, mergeWatchdogIntoMessages, serializeTree } from "./serialize";
+import { buildSnapshot, collectDisplayMessages, flattenTree, mergeWatchdogIntoMessages } from "./serialize";
 
 type EventSink = (event: StreamEvent) => void;
 
@@ -1540,14 +1540,14 @@ export class AgentHost {
     return snapshot;
   }
 
-  getTree(path?: string): TreeNode[] {
+  getTree(path?: string): FlatTreeNode[] {
     const currentFile = this.runtime?.session?.sessionFile;
     if (path && path !== currentFile) {
-      return serializeTree(SessionManager.open(path).getTree());
+      return flattenTree(SessionManager.open(path).getTree());
     }
     const session = this.runtime?.session;
     if (!session) return [];
-    return serializeTree(session.sessionManager.getTree());
+    return flattenTree(session.sessionManager.getTree());
   }
 
   async compact(instructions?: string): Promise<void> {

@@ -38,7 +38,7 @@ export function PanelResizeHandle({
       role="separator"
       aria-orientation="vertical"
       aria-label="调整工作区宽度"
-      className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent-soft)]"
+      className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
       onPointerDown={onPointerDown}
     />
   );

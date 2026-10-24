@@ -127,7 +127,7 @@ export function ModelSelectionPanes({
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <div className="flex min-h-0 flex-col rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3">
+      <div className="flex min-h-0 flex-col rounded-panel border border-line bg-canvas p-3">
         <div className="mb-2 flex items-center gap-2">
           {visibleRows.length > 0 && (
             <input
@@ -144,7 +144,7 @@ export function ModelSelectionPanes({
           {onReload && (
             <button
               type="button"
-              className="flex shrink-0 items-center gap-1 rounded border border-[var(--line)] px-2 py-0.5 text-[10px] disabled:opacity-50"
+              className="flex shrink-0 items-center gap-1 rounded border border-line px-2 py-0.5 text-2xs disabled:opacity-50"
               disabled={busy || !canReload || loading}
               onClick={onReload}
             >
@@ -153,8 +153,8 @@ export function ModelSelectionPanes({
             </button>
           )}
         </div>
-        <div className="mb-2 flex items-center gap-2 rounded border border-[var(--line)] bg-[var(--bg-panel)] px-2 py-1">
-          <MagnifyingGlass size={12} className="shrink-0 text-[var(--muted)]" />
+        <div className="mb-2 flex items-center gap-2 rounded border border-line bg-surface px-2 py-1">
+          <MagnifyingGlass size={12} className="shrink-0 text-ink-muted" />
           <input
             className="w-full bg-transparent text-xs outline-none"
             placeholder="搜索模型 ID"
@@ -164,18 +164,18 @@ export function ModelSelectionPanes({
         </div>
         <div className="min-h-[180px] flex-1 overflow-auto">
           {error ? (
-            <div className="px-1 py-2 text-xs text-[var(--danger)]">{error}</div>
+            <div className="px-1 py-2 text-xs text-danger">{error}</div>
           ) : rows.length === 0 ? (
-            <div className="px-1 py-2 text-xs text-[var(--muted)]">
+            <div className="px-1 py-2 text-xs text-ink-muted">
               {loading ? "正在获取模型…" : "该服务未返回模型，可手动添加。"}
             </div>
           ) : visibleRows.length === 0 ? (
-            <div className="px-1 py-2 text-xs text-[var(--muted)]">无匹配模型</div>
+            <div className="px-1 py-2 text-xs text-ink-muted">无匹配模型</div>
           ) : (
             visibleRows.map((row) => (
               <label
                 key={row.id}
-                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-[var(--bg-raised)]"
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-surface-raised"
               >
                 <input
                   type="checkbox"
@@ -186,10 +186,10 @@ export function ModelSelectionPanes({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-xs">{row.id}</span>
                   {row.displayName && row.displayName !== row.id && (
-                    <span className="block truncate text-[10px] text-[var(--muted)]">{row.displayName}</span>
+                    <span className="block truncate text-2xs text-ink-muted">{row.displayName}</span>
                   )}
                 </span>
-                <span className="shrink-0 text-[10px] text-[var(--muted)]">
+                <span className="shrink-0 text-2xs text-ink-muted">
                   {formatTokenCount(row.contextWindow)} · {formatTokenCount(row.maxTokens)}
                 </span>
               </label>
@@ -198,7 +198,7 @@ export function ModelSelectionPanes({
         </div>
         <div className="mt-2 flex gap-2">
           <input
-            className="min-w-0 flex-1 rounded border border-[var(--line)] bg-[var(--bg-panel)] px-2 py-1 text-xs"
+            className="min-w-0 flex-1 rounded border border-line bg-surface px-2 py-1 text-xs"
             placeholder="手动添加模型 ID"
             value={customId}
             onChange={(event) => setCustomId(event.target.value)}
@@ -211,7 +211,7 @@ export function ModelSelectionPanes({
           />
           <button
             type="button"
-            className="shrink-0 rounded border border-[var(--line)] px-2 py-1 text-xs hover:border-[var(--accent)]"
+            className="shrink-0 rounded border border-line px-2 py-1 text-xs hover:border-accent"
             onClick={addCustomModel}
           >
             添加
@@ -219,14 +219,14 @@ export function ModelSelectionPanes({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-col rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3">
+      <div className="flex min-h-0 flex-col rounded-panel border border-line bg-canvas p-3">
         <div className="mb-2 flex items-center gap-2">
           <h4 className="text-xs font-medium">模型配置</h4>
-          <span className="rounded bg-[var(--bg-raised)] px-1.5 text-[10px] text-[var(--muted)]">
+          <span className="rounded bg-surface-raised px-1.5 text-2xs text-ink-muted">
             {models.length}
           </span>
-          <div className="ml-auto flex items-center gap-2 rounded border border-[var(--line)] bg-[var(--bg-panel)] px-2 py-1">
-            <MagnifyingGlass size={12} className="shrink-0 text-[var(--muted)]" />
+          <div className="ml-auto flex items-center gap-2 rounded border border-line bg-surface px-2 py-1">
+            <MagnifyingGlass size={12} className="shrink-0 text-ink-muted" />
             <input
               className="w-24 bg-transparent text-xs outline-none"
               placeholder="筛选已选"
@@ -238,22 +238,22 @@ export function ModelSelectionPanes({
         </div>
         <div className="min-h-[180px] flex-1 space-y-2 overflow-auto">
           {models.length === 0 ? (
-            <div className="px-1 py-2 text-xs text-[var(--muted)]">尚未选择模型</div>
+            <div className="px-1 py-2 text-xs text-ink-muted">尚未选择模型</div>
           ) : visibleChosen.length === 0 ? (
-            <div className="px-1 py-2 text-xs text-[var(--muted)]">无匹配的已选模型</div>
+            <div className="px-1 py-2 text-xs text-ink-muted">无匹配的已选模型</div>
           ) : (
             visibleChosen.map((binding) => {
               const expanded = expandedId === binding.id;
               return (
-                <div key={binding.id} className="rounded-lg border border-[var(--line)] p-2">
+                <div key={binding.id} className="rounded-control border border-line p-2">
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate font-mono text-xs">{binding.id}</span>
-                    <span className="shrink-0 text-[10px] text-[var(--muted)]">
+                    <span className="shrink-0 text-2xs text-ink-muted">
                       {formatTokenCount(binding.contextWindow)} · {formatTokenCount(binding.maxTokens)}
                     </span>
                     <button
                       type="button"
-                      className="shrink-0 text-[10px] text-[var(--accent)]"
+                      className="shrink-0 text-2xs text-accent"
                       title="高级设置"
                       aria-label="高级设置"
                       onClick={() => setExpandedId(expanded ? null : binding.id)}
@@ -264,7 +264,7 @@ export function ModelSelectionPanes({
                       type="button"
                       title="移除"
                       aria-label="移除"
-                      className="shrink-0 text-[var(--muted)] hover:text-[var(--danger)]"
+                      className="shrink-0 text-ink-muted hover:text-danger"
                       onClick={() => setModels((current) => current.filter((entry) => entry.id !== binding.id))}
                     >
                       <X size={12} />
@@ -272,11 +272,11 @@ export function ModelSelectionPanes({
                   </div>
 
                   {expanded && (
-                    <div className="mt-2 space-y-2 border-t border-[var(--line)] pt-2">
-                      <label className="block text-[10px] text-[var(--muted)]">
+                    <div className="mt-2 space-y-2 border-t border-line pt-2">
+                      <label className="block text-2xs text-ink-muted">
                         别名
                         <input
-                          className="mt-0.5 w-full rounded border border-[var(--line)] bg-[var(--bg-panel)] px-2 py-1 text-xs text-[var(--text)]"
+                          className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
                           value={binding.alias ?? ""}
                           placeholder="显示名称（可选）"
                           onChange={(event) =>
@@ -288,7 +288,7 @@ export function ModelSelectionPanes({
                       </label>
 
                       {/* 模型能力：文本与图片输入对应 models.json 的 input 字段；input 未设置时 pi 默认按文本处理，故文本默认勾选 */}
-                      <div className="text-[10px] text-[var(--muted)]">
+                      <div className="text-2xs text-ink-muted">
                         模型能力
                         <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
                           <label className="flex items-center gap-1">
@@ -324,17 +324,17 @@ export function ModelSelectionPanes({
                         </div>
                       </div>
 
-                      <div className="text-[10px] text-[var(--muted)]">
+                      <div className="text-2xs text-ink-muted">
                         上下文窗口
                         <div className="mt-0.5 flex flex-wrap gap-1">
                           {CONTEXT_WINDOW_PRESETS.map((preset, index) => (
                             <button
                               key={preset.label}
                               type="button"
-                              className={`rounded border px-1.5 py-0.5 text-[10px] ${
+                              className={`rounded border px-1.5 py-0.5 text-2xs ${
                                 matchPresetIndex(CONTEXT_WINDOW_PRESETS, binding.contextWindow) === index
-                                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text)]"
-                                  : "border-[var(--line)] hover:border-[var(--accent)]"
+                                  ? "border-accent bg-accent-soft text-ink"
+                                  : "border-line hover:border-accent"
                               }`}
                               onClick={() =>
                                 updateBinding(binding.id, { contextWindow: preset.tokens })
@@ -347,7 +347,7 @@ export function ModelSelectionPanes({
                         <input
                           type="number"
                           min={1}
-                          className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg-panel)] px-2 py-1 text-xs text-[var(--text)]"
+                          className="mt-1 w-full rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
                           value={binding.contextWindow ?? ""}
                           onChange={(event) =>
                             updateBinding(binding.id, {
@@ -357,17 +357,17 @@ export function ModelSelectionPanes({
                         />
                       </div>
 
-                      <div className="text-[10px] text-[var(--muted)]">
+                      <div className="text-2xs text-ink-muted">
                         最大输出
                         <div className="mt-0.5 flex flex-wrap gap-1">
                           {MAX_OUTPUT_PRESETS.map((preset, index) => (
                             <button
                               key={preset.label}
                               type="button"
-                              className={`rounded border px-1.5 py-0.5 text-[10px] ${
+                              className={`rounded border px-1.5 py-0.5 text-2xs ${
                                 matchPresetIndex(MAX_OUTPUT_PRESETS, binding.maxTokens) === index
-                                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text)]"
-                                  : "border-[var(--line)] hover:border-[var(--accent)]"
+                                  ? "border-accent bg-accent-soft text-ink"
+                                  : "border-line hover:border-accent"
                               }`}
                               onClick={() => updateBinding(binding.id, { maxTokens: preset.tokens })}
                             >
@@ -378,7 +378,7 @@ export function ModelSelectionPanes({
                         <input
                           type="number"
                           min={1}
-                          className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg-panel)] px-2 py-1 text-xs text-[var(--text)]"
+                          className="mt-1 w-full rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
                           value={binding.maxTokens ?? ""}
                           onChange={(event) =>
                             updateBinding(binding.id, { maxTokens: Number(event.target.value) || undefined })
@@ -386,7 +386,7 @@ export function ModelSelectionPanes({
                         />
                       </div>
 
-                      <div className="text-[10px] text-[var(--muted)]">
+                      <div className="text-2xs text-ink-muted">
                         支持的思考等级
                         <div className="mt-0.5 flex flex-wrap gap-1">
                           {THINKING_LEVELS.map((level) => {
@@ -395,10 +395,10 @@ export function ModelSelectionPanes({
                               <button
                                 key={level}
                                 type="button"
-                                className={`rounded border px-1.5 py-0.5 text-[10px] ${
+                                className={`rounded border px-1.5 py-0.5 text-2xs ${
                                   on
-                                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--text)]"
-                                    : "border-[var(--line)] hover:border-[var(--accent)]"
+                                    ? "border-accent bg-accent-soft text-ink"
+                                    : "border-line hover:border-accent"
                                 }`}
                                 onClick={() => {
                                   const thinkingLevels = on
@@ -425,10 +425,10 @@ export function ModelSelectionPanes({
                       </div>
 
                       {binding.thinkingLevels.length > 1 && (
-                        <label className="block text-[10px] text-[var(--muted)]">
+                        <label className="block text-2xs text-ink-muted">
                           默认思考等级
                           <select
-                            className="mt-0.5 w-full rounded border border-[var(--line)] bg-[var(--bg-panel)] px-2 py-1 text-xs text-[var(--text)]"
+                            className="mt-0.5 w-full rounded border border-line bg-surface px-2 py-1 text-xs text-ink"
                             value={binding.defaultThinkingLevel ?? ""}
                             onChange={(event) =>
                               updateBinding(binding.id, {

@@ -6,6 +6,8 @@ release/
 docs/*
 !docs/screenshots/
 !docs/ui/
+# MCP 迁移文档随功能入库（其余 docs/* 仍为本地产物）
+!docs/mcp/
 # 界面截图是本地验证产物（可由 scripts/ui-shots.mjs 重新生成），不入库
 docs/ui/shots/
 .pi/

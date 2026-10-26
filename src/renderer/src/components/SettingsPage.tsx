@@ -1,7 +1,8 @@
-import { Files, Monitor, Moon, Palette, ShieldCheck, SlidersHorizontal, Sun, Trash } from "@phosphor-icons/react";
+import { Files, Monitor, Moon, Palette, PlugsConnected, ShieldCheck, SlidersHorizontal, Sun, Trash } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import type { DesktopSettings, ResourceCreateScope, ResourceFile, ResourceFiles, ThemeMode } from "@shared/types";
 import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+import { McpSettingsPanel } from "./mcp/McpSettingsPanel";
 import {
   Badge,
   Button,
@@ -27,12 +28,13 @@ const THEME_OPTIONS: Array<{ id: ThemeMode; label: string; hint: string; icon: t
   { id: "system", label: "跟随系统", hint: "随操作系统外观自动切换", icon: Monitor },
 ];
 
-type SettingsGroup = "appearance" | "behavior" | "project" | "resources";
+type SettingsGroup = "appearance" | "behavior" | "project" | "mcp" | "resources";
 
 const GROUPS: Array<{ id: SettingsGroup; label: string; icon: typeof Palette }> = [
   { id: "appearance", label: "外观", icon: Palette },
   { id: "behavior", label: "行为", icon: SlidersHorizontal },
   { id: "project", label: "项目与权限", icon: ShieldCheck },
+  { id: "mcp", label: "MCP", icon: PlugsConnected },
   { id: "resources", label: "资源文件", icon: Files },
 ];
 
@@ -260,6 +262,8 @@ export function SettingsPage() {
               </SectionCard>
             </>
           )}
+
+          {group === "mcp" && <McpSettingsPanel />}
 
           {group === "resources" && (
             filesLoading ? (

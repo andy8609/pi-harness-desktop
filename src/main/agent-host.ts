@@ -81,7 +81,7 @@ type AuthPrompt = {
   type: "text" | "secret" | "select" | "manual_code";
   message: string;
   placeholder?: string;
-  options?: Array<{ id: string; label: string; description?: string }>;
+  options?: ReadonlyArray<{ id: string; label: string; description?: string }>;
 };
 type AuthEvent =
   | { type: "info"; message: string }
@@ -127,7 +127,10 @@ import type { DialogBroker } from "./dialog-broker";
 import { createPermissionExtension } from "./extensions/permissions";
 import { PermissionStore } from "./permission-store";
 import { createGpaExtension } from "./extensions/gpa";
+import { createMcpExtension } from "./extensions/mcp";
 import { createParamCompatExtension } from "./extensions/param-compat";
+import type { McpRuntime } from "./mcp/runtime";
+import type { McpToolBridge } from "./mcp/tools";
 import { searchProjectFiles } from "./file-search";
 import {
   applyReasoningLevelOverrides,
@@ -214,10 +217,24 @@ export class AgentHost {
   /** 等待下一个空闲点执行的 400 兜底（不在流式回合中插手）。 */
   private pendingParameterRecovery: { kind: ParameterRecoveryKind; provider: string; id: string } | undefined;
 
+  /** MCP 运行时与工具桥：由 main 进程装配后注入；未注入时 MCP 功能整体不启用。 */
+  private mcpRuntime: McpRuntime | undefined;
+  private mcpBridge: McpToolBridge | undefined;
+
   constructor(
     private readonly dialogs: DialogBroker,
     private readonly emit: EventSink,
   ) {}
+
+  /** 注入 MCP 依赖（必须在 `initialize()` 之前调用才能自动连接）。 */
+  setMcp(runtime: McpRuntime, bridge: McpToolBridge): void {
+    this.mcpRuntime = runtime;
+    this.mcpBridge = bridge;
+  }
+
+  getMcpRuntime(): McpRuntime | undefined {
+    return this.mcpRuntime;
+  }
 
   async initialize(): Promise<void> {
     this.modelRuntime = await ModelRuntime.create({
@@ -225,6 +242,8 @@ export class AgentHost {
       refreshOnCreate: true,
     });
     await this.sanitizeModelsFile();
+    // 启动即连接全局激活的服务器；单台失败只体现在状态里，不阻塞启动。
+    void this.mcpRuntime?.connectAll();
   }
 
   isBusy(): boolean {
@@ -803,6 +822,7 @@ export class AgentHost {
           extensionFactories: [
             createPermissionExtension(this.dialogs, this.permissionStore, () => this.cwd),
             createGpaExtension(() => this.gpaState, this.dialogs),
+            ...(this.mcpBridge ? [createMcpExtension(this.mcpBridge)] : []),
             createParamCompatExtension({
               expectedMaxTokensField: (modelId) => maxTokensFieldForModel(this.getModelsFile().file, modelId),
               reasoningEffortDisabled: (modelId) => reasoningEffortDisabledForModel(this.getModelsFile().file, modelId),
@@ -844,6 +864,9 @@ export class AgentHost {
       this.runtime = undefined;
     }
     this.cwd = cwd;
+    this.mcpRuntime?.setProjectPath(cwd);
+    // 不 await：慢或坏的服务器不能拖住打开项目；状态通过 onChanged 推送。
+    void this.mcpRuntime?.toolsForProject();
     this.queue = { steering: [], followUp: [] };
     this.queuedImages.clear();
     this.resetGpaRuntime();
@@ -1638,7 +1661,7 @@ export class AgentHost {
     const model = session.model;
     if (model) await this.ensureModelReasoning(model.provider, model.id);
     const live = this.requireSession();
-    const allowed = model
+    const allowed: ThinkingLevel[] = model
       ? this.thinkingLevelsForModel(model.provider, model.id, model.reasoning)
       : ["off"];
     live.setThinkingLevel(allowed.includes(level) ? level : (allowed[0] ?? "off"));
@@ -1671,7 +1694,7 @@ export class AgentHost {
           const request: Omit<DialogRequest, "id"> = {
             kind: "select",
             title: prompt.message,
-            options: prompt.options.map((option) => ({
+            options: (prompt.options ?? []).map((option) => ({
               id: option.id,
               label: option.label,
               description: option.description,
@@ -1830,7 +1853,8 @@ export class AgentHost {
   }
 
   getSessionInfo(): Record<string, unknown> {
-    return this.requireSession().getSessionStats();
+    // SessionStats 是接口而非 Record：展开一层再返回，保持 IPC 的宽松契约。
+    return { ...this.requireSession().getSessionStats() };
   }
 
   private packageContext() {
@@ -1904,6 +1928,7 @@ export class AgentHost {
   async dispose(): Promise<void> {
     this.stopWatchdog();
     this.unsubscribe?.();
+    this.mcpRuntime?.disposeAll();
     if (this.runtime) {
       await this.runtime.dispose();
       this.runtime = undefined;

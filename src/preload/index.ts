@@ -14,6 +14,11 @@ import type {
   ThemeMode,
   ThinkingLevel,
 } from "@shared/types";
+import type {
+  McpScope,
+  McpServerInput,
+  McpSnapshot,
+} from "@shared/mcp";
 
 const api = {
   getState: () => ipcRenderer.invoke("app:getState"),
@@ -88,6 +93,19 @@ const api = {
   importSkillFile: () => ipcRenderer.invoke("app:importSkillFile"),
   importSkillDir: () => ipcRenderer.invoke("app:importSkillDir"),
   quit: () => ipcRenderer.invoke("app:quit"),
+  // ---- MCP ----
+  mcpList: () => ipcRenderer.invoke("mcp:list"),
+  mcpUpsert: (input: McpServerInput) => ipcRenderer.invoke("mcp:upsert", input),
+  mcpRemove: (id: string) => ipcRenderer.invoke("mcp:remove", { id }),
+  mcpSetEnabled: (id: string, enabled: boolean) => ipcRenderer.invoke("mcp:setEnabled", { id, enabled }),
+  mcpSetScope: (id: string, scope: McpScope) => ipcRenderer.invoke("mcp:setScope", { id, scope }),
+  mcpTest: (id: string) => ipcRenderer.invoke("mcp:test", { id }),
+  mcpReconnect: (id: string) => ipcRenderer.invoke("mcp:reconnect", { id }),
+  mcpDisconnect: (id: string) => ipcRenderer.invoke("mcp:disconnect", { id }),
+  mcpListTools: (id: string) => ipcRenderer.invoke("mcp:listTools", { id }),
+  mcpSetToolEnabled: (id: string, toolName: string, enabled: boolean) =>
+    ipcRenderer.invoke("mcp:setToolEnabled", { id, toolName, enabled }),
+  mcpRefresh: () => ipcRenderer.invoke("mcp:refresh"),
   respondDialog: (response: DialogResponse) => {
     ipcRenderer.send("dialog:respond", response);
   },
@@ -105,6 +123,11 @@ const api = {
     const handler = (_event: unknown, payload: CatalogPackage[]) => listener(payload);
     ipcRenderer.on("catalog:updated", handler);
     return () => ipcRenderer.removeListener("catalog:updated", handler);
+  },
+  onMcpChanged: (listener: (snapshot: McpSnapshot) => void) => {
+    const handler = (_event: unknown, payload: McpSnapshot) => listener(payload);
+    ipcRenderer.on("mcp:changed", handler);
+    return () => ipcRenderer.removeListener("mcp:changed", handler);
   },
 };
 

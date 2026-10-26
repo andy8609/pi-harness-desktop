@@ -39,6 +39,7 @@ Pi Desktop 是一个完全独立的桌面应用，源码不依赖任何 `pi-main
 | 🧩 扩展 | 浏览 npm 目录（`keywords:pi-package`）、安装 / 卸载、一键启停、更新目录缓存 |
 | ⚡ Skills | 与扩展一致的目录管理，额外支持导入 `SKILL.md` 或本地技能目录 |
 | 🎛️ 模型 | 图形化编辑 `models.json`，支持 OpenAI / Anthropic / Google 兼容接口，可拉取远端模型列表勾选 |
+| 🔌 MCP | 接入 Model Context Protocol 服务器（stdio / HTTP），自动发现并注册工具、连接状态与错误展示、测试连接、工具级开关、stdio 命令授权确认 |
 | ⚙️ 设置 | 深色 / 浅色 / 跟随系统主题、默认思考等级、隐藏思考块、自动压缩 / 重试、项目信任策略（除主题外与 CLI 共用 `settings.json`） |
 | 🔐 提供商 | 通过 IPC 触发 API Key / OAuth 登录流程，扩展 UI 请求（confirm / input / secret / select）映射为原生对话框 |
 | 📊 状态 | 底部状态栏实时展示运行状态、工作目录、Token 用量、花费、上下文占比、思考等级与当前模型 |
@@ -204,6 +205,8 @@ pi-harness-desktop/
 │  │  ├─ package-ops.ts        # 扩展安装 / 卸载 / 启停
 │  │  ├─ models-file.ts        # models.json 读写
 │  │  ├─ remote-models.ts      # 拉取远端模型列表
+│  │  ├─ mcp/                  # MCP 客户端：配置 / 连接 / 工具注册 / IPC
+│  │  ├─ extensions/           # 内置 pi 扩展（权限 / GPA / MCP 工具注入）
 │  │  ├─ dialog-broker.ts      # 扩展 UI 请求 → 原生对话框
 │  │  ├─ file-search.ts        # @ 文件引用搜索
 │  │  ├─ prefs.ts              # 窗口尺寸 / 上次项目等桌面偏好
@@ -234,10 +237,12 @@ pi-harness-desktop/
 | 通用设置 | `~/.pi/agent/settings.json` |
 | 会话记录 / 扩展 / Skill | `~/.pi/agent`（按项目组织，与 CLI 共用） |
 | 桌面窗口尺寸、上次项目 | Electron `userData` 目录（不写入项目源码） |
+| MCP 服务器配置 | `~/.pi/agent/mcp-servers.json`（与 pi CLI 配置同目录，可用 `PI_MCP_CONFIG_PATH` 覆盖） |
 
 ## 📚 文档
 
 - **[USAGE.md](USAGE.md)** — 完整使用手册：界面总览、输入框、斜杠命令、会话树、扩展 / Skills / 模型 / 设置、快捷键与常见问题。
+- **[docs/mcp/README.md](docs/mcp/README.md)** — MCP 使用与配置：字段说明、示例、安全策略、故障排查、开发者接入点。
 
 ## ❓ 常见问题
 

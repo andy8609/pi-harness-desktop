@@ -5,10 +5,12 @@ import type { CreateResourceFileInput, DesktopSettings, DialogResponse, Installe
 import type { AgentHost } from "./agent-host";
 import type { DialogBroker } from "./dialog-broker";
 import { listDirectory, readFileText } from "./fs-panel";
+import { registerMcpIpc } from "./mcp/ipc";
+import type { McpService } from "./mcp/service";
 import { savePrefs } from "./prefs";
 import { listRemoteModels } from "./remote-models";
 
-function wrap<T>(fn: () => Promise<T> | T): Promise<T> {
+export function wrap<T>(fn: () => Promise<T> | T): Promise<T> {
   return Promise.resolve()
     .then(fn)
     .catch((error: unknown) => {
@@ -27,7 +29,7 @@ function appVersion(): string {
   return app.getVersion();
 }
 
-export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
+export function registerIpc(host: AgentHost, dialogs: DialogBroker, mcp?: McpService): void {
   ipcMain.handle("app:getState", () => wrap(() => host.snapshot() ?? null));
   ipcMain.handle("app:openDirectory", () =>
     wrap(async () => {
@@ -114,8 +116,8 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   );
   ipcMain.handle("app:exportHtml", () =>
     wrap(async () => {
-      const window = BrowserWindow.getFocusedWindow();
-      const result = await dialog.showSaveDialog(window ?? undefined, {
+      // 不传 window：无焦点窗口时仍然可用，且避免 BrowserWindow | undefined 的类型冲突。
+      const result = await dialog.showSaveDialog({
         defaultPath: "session.html",
         filters: [{ name: "HTML", extensions: ["html"] }],
       });
@@ -125,8 +127,7 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   );
   ipcMain.handle("app:exportJsonl", () =>
     wrap(async () => {
-      const window = BrowserWindow.getFocusedWindow();
-      const result = await dialog.showSaveDialog(window ?? undefined, {
+      const result = await dialog.showSaveDialog({
         defaultPath: "session.jsonl",
         filters: [{ name: "JSONL", extensions: ["jsonl"] }],
       });
@@ -136,8 +137,7 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   );
   ipcMain.handle("app:importJsonl", () =>
     wrap(async () => {
-      const window = BrowserWindow.getFocusedWindow();
-      const result = await dialog.showOpenDialog(window ?? undefined, {
+      const result = await dialog.showOpenDialog({
         properties: ["openFile"],
         filters: [{ name: "JSONL", extensions: ["jsonl"] }],
       });
@@ -197,4 +197,6 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker): void {
   ipcMain.on("dialog:respond", (_event, response: DialogResponse) => {
     dialogs.respond(response);
   });
+
+  if (mcp) registerMcpIpc(mcp);
 }

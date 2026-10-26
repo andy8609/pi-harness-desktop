@@ -1,4 +1,5 @@
 import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, FlatTreeNode, InstalledResource, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThemeMode, ThinkingLevel } from "@shared/types";
+import type { McpScope, McpServerInput, McpServerRecord, McpServerStatus, McpSnapshot, McpToolView } from "@shared/mcp";
 declare const api: {
     getState: () => Promise<any>;
     openDirectory: () => Promise<any>;
@@ -66,6 +67,18 @@ declare const api: {
     importSkillFile: () => Promise<any>;
     importSkillDir: () => Promise<any>;
     quit: () => Promise<any>;
+    mcpList: () => Promise<McpSnapshot>;
+    mcpUpsert: (input: McpServerInput) => Promise<{ server: McpServerRecord; cancelled?: boolean }>;
+    mcpRemove: (id: string) => Promise<{ removed: boolean }>;
+    mcpSetEnabled: (id: string, enabled: boolean) => Promise<{ server: McpServerRecord }>;
+    mcpSetScope: (id: string, scope: McpScope) => Promise<{ server: McpServerRecord }>;
+    mcpTest: (id: string) => Promise<{ status: McpServerStatus }>;
+    mcpReconnect: (id: string) => Promise<{ status: McpServerStatus }>;
+    mcpDisconnect: (id: string) => Promise<{ ok: boolean }>;
+    mcpListTools: (id: string) => Promise<{ tools: McpToolView[] }>;
+    mcpSetToolEnabled: (id: string, toolName: string, enabled: boolean) => Promise<{ server: McpServerRecord }>;
+    mcpRefresh: () => Promise<McpSnapshot>;
+    onMcpChanged: (listener: (snapshot: McpSnapshot) => void) => () => Electron.IpcRenderer;
     respondDialog: (response: DialogResponse) => void;
     onEvent: (listener: (event: StreamEvent) => void) => () => Electron.IpcRenderer;
     onDialog: (listener: (request: DialogRequest) => void) => () => Electron.IpcRenderer;

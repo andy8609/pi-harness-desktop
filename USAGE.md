@@ -364,6 +364,27 @@ npm run pack        # 产物在 desktop/release/
 - **写入 models.json**（新增时）/ **保存修改**（编辑时）：把表单写入文件并刷新模型目录。
 - **取消编辑**（仅编辑时）：清空表单回到新增状态。
 
+### 10.1.1 模型默认值（models.dev）
+
+勾选模型时，以下字段留空会自动填充，来源是 [models.dev](https://models.dev) 的公开目录（`https://models.dev/api.json`）：
+
+| models.dev 字段 | 写入 models.json | 说明 |
+| --- | --- | --- |
+| `limit.context` | `contextWindow` | 上下文窗口 |
+| `limit.output` | `maxTokens` | 最大输出 |
+| `reasoning_options` | `reasoning` + `thinkingLevels` + `defaultThinkingLevel` | `effort` 型按实际档位映射；“只能开关”的推理模型给“关闭 / 高”两档 |
+| `modalities.input` | `input` | 只保留 pi 认识的 `text` / `image`，`pdf` / `audio` / `video` 丢弃 |
+| `cost` | `cost` | 每百万 token 参考价，pi 用它估算会话费用 |
+
+行为约定：
+
+- **只填空**：表单里已填过的值一律不覆盖；每项仍可在「模型配置」里手工修改。
+- **provider 匹配**：先看 ID，再看别名（如 `ollama` → `ollama-cloud`、`zhipu` → `zai`），最后按 Base URL 域名。
+- **模型匹配**：精确 ID → 去上游前缀（`openai/gpt-5`）→ 去网关后缀（`:free`、`@2025-08-07`）→ 唯一前缀匹配。
+- **本地服务不套用**：Base URL 指向 `localhost` / `127.0.0.1` 时（Ollama / LM Studio / vLLM）不补默认值，因为这些参数取决于本地量化与启动参数。
+- **只信官方目录**：provider 认不出来时，仅当模型出现在厂商自己的目录里才兜底，避免拿转售网关的价格当默认值。
+- **缓存**：`~/.pi/agent/desktop-models-dev-cache.json`，7 天过期；网络不可用时回退旧缓存。模型面板里展开已选模型会显示 `默认值来自 models.dev/xxx` 与参考价。
+
 ### 10.2 「已写入的自定义提供商」列表
 
 每行显示：提供商 ID、API、Base URL、模型列表。

@@ -38,7 +38,7 @@ Pi Desktop 是一个完全独立的桌面应用，源码不依赖任何 `pi-main
 | 🧭 会话 | 会话列表、新建 / 恢复 / 命名 / 删除、Clone、手动压缩、会话树导航与 fork、`jsonl` / `html` 导入导出 |
 | 🧩 扩展 | 浏览 npm 目录（`keywords:pi-package`）、安装 / 卸载、一键启停、更新目录缓存 |
 | ⚡ Skills | 与扩展一致的目录管理，额外支持导入 `SKILL.md` 或本地技能目录 |
-| 🎛️ 模型 | 图形化编辑 `models.json`，支持 OpenAI / Anthropic / Google 兼容接口，可拉取远端模型列表勾选 |
+| 🎛️ 模型 | 图形化编辑 `models.json`，支持 OpenAI / Anthropic / Google 兼容接口，可拉取远端模型列表勾选，上下文 / 输出 / 思考能力 / 参考价默认取自 models.dev |
 | 🔌 MCP | 接入 Model Context Protocol 服务器（stdio / HTTP），自动发现并注册工具、连接状态与错误展示、测试连接、工具级开关、stdio 命令授权确认 |
 | ⚙️ 设置 | 深色 / 浅色 / 跟随系统主题、默认思考等级、隐藏思考块、自动压缩 / 重试、项目信任策略（除主题外与 CLI 共用 `settings.json`） |
 | 🔐 提供商 | 通过 IPC 触发 API Key / OAuth 登录流程，扩展 UI 请求（confirm / input / secret / select）映射为原生对话框 |
@@ -205,6 +205,7 @@ pi-harness-desktop/
 │  │  ├─ package-ops.ts        # 扩展安装 / 卸载 / 启停
 │  │  ├─ models-file.ts        # models.json 读写
 │  │  ├─ remote-models.ts      # 拉取远端模型列表
+│  │  ├─ models-dev.ts         # models.dev 目录拉取 / 缓存（模默认值）
 │  │  ├─ mcp/                  # MCP 客户端：配置 / 连接 / 工具注册 / IPC
 │  │  ├─ extensions/           # 内置 pi 扩展（权限 / GPA / MCP 工具注入）
 │  │  ├─ dialog-broker.ts      # 扩展 UI 请求 → 原生对话框

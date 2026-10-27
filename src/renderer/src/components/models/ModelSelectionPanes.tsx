@@ -1,5 +1,7 @@
 import { ArrowsClockwise, CaretDown, CaretRight, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
+import type { ModelDevCost } from "@shared/types";
+import { formatCost } from "../../lib/models-dev";
 import {
   CONTEXT_WINDOW_PRESETS,
   MAX_OUTPUT_PRESETS,
@@ -15,6 +17,13 @@ export interface ModelRow {
   displayName: string;
   contextWindow?: number;
   maxTokens?: number;
+  /** 以下为 models.dev 提供的默认元数据，只在用户没填过时生效。 */
+  reasoning?: boolean;
+  input?: string[];
+  thinkingLevels?: string[];
+  defaultThinkingLevel?: string | null;
+  cost?: ModelDevCost;
+  source?: string;
 }
 
 /** 根据文本/图片勾选状态生成 models.json 的 input 数组；两项都取消时为空数组（明确表达无输入能力）。 */
@@ -35,6 +44,7 @@ export function ModelSelectionPanes({
   error,
   canReload,
   onReload,
+  onModelAdded,
   busy,
   listTitle,
 }: {
@@ -45,6 +55,8 @@ export function ModelSelectionPanes({
   error?: string;
   canReload: boolean;
   onReload?: () => void;
+  /** 手动添加模型后通知父组件去取默认元数据。 */
+  onModelAdded?: (id: string) => void;
   busy?: boolean;
   listTitle: string;
 }) {
@@ -83,8 +95,12 @@ export function ModelSelectionPanes({
     id: row.id,
     contextWindow: row.contextWindow,
     maxTokens: row.maxTokens,
-    thinkingLevels: [],
-    defaultThinkingLevel: null,
+    reasoning: row.reasoning,
+    input: row.input,
+    thinkingLevels: row.thinkingLevels ?? [],
+    defaultThinkingLevel: row.defaultThinkingLevel ?? null,
+    cost: row.cost,
+    source: row.source,
   });
 
   const toggleModel = (row: ModelRow) => {
@@ -123,6 +139,7 @@ export function ModelSelectionPanes({
     setModels((current) => [...current, bindingForRow({ id, displayName: id })]);
     setExpandedId(id);
     setCustomId("");
+    onModelAdded?.(id);
   };
 
   return (
@@ -444,6 +461,14 @@ export function ModelSelectionPanes({
                             ))}
                           </select>
                         </label>
+                      )}
+
+                      {/* 默认值来源：只提示，不可编辑；用户随时可以改上面的具体字段 */}
+                      {binding.source && (
+                        <p className="text-2xs text-ink-muted">
+                          默认值来自 {binding.source}
+                          {formatCost(binding.cost) ? ` · 参考价 ${formatCost(binding.cost)}` : ""}
+                        </p>
                       )}
                     </div>
                   )}

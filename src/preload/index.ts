@@ -5,6 +5,7 @@ import type {
   DialogRequest,
   DialogResponse,
   InstalledResource,
+  ModelDevQuery,
   ModelsFile,
   PromptPayload,
   QueueMutation,
@@ -85,6 +86,7 @@ const api = {
   refreshCatalog: () => ipcRenderer.invoke("app:refreshCatalog"),
   listRemoteModels: (baseUrl: string, apiKey?: string) =>
     ipcRenderer.invoke("app:listRemoteModels", baseUrl, apiKey),
+  modelsDevDefaults: (query: ModelDevQuery) => ipcRenderer.invoke("app:modelsDevDefaults", query),
   listPackages: () => ipcRenderer.invoke("app:listPackages"),
   installPackage: (name: string) => ipcRenderer.invoke("app:installPackage", name),
   removePackage: (source: string) => ipcRenderer.invoke("app:removePackage", source),

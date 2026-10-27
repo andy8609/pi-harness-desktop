@@ -1,10 +1,11 @@
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme } from "electron";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { CreateResourceFileInput, DesktopSettings, DialogResponse, InstalledResource, ModelsFile, PromptPayload, QueueMutation, ResourceFile, ThemeMode, ThinkingLevel } from "@shared/types";
+import type { CreateResourceFileInput, DesktopSettings, DialogResponse, InstalledResource, ModelDevQuery, ModelsFile, PromptPayload, QueueMutation, ResourceFile, ThemeMode, ThinkingLevel } from "@shared/types";
 import type { AgentHost } from "./agent-host";
 import type { DialogBroker } from "./dialog-broker";
 import { listDirectory, readFileText } from "./fs-panel";
+import { modelDevDefaults } from "./models-dev";
 import { registerMcpIpc } from "./mcp/ipc";
 import type { McpService } from "./mcp/service";
 import { savePrefs } from "./prefs";
@@ -163,6 +164,9 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker, mcp?: McpSer
   ipcMain.handle("app:refreshCatalog", () => wrap(() => host.refreshCatalog()));
   ipcMain.handle("app:listRemoteModels", (_event, baseUrl: string, apiKey?: string) =>
     wrap(() => listRemoteModels(baseUrl, apiKey)),
+  );
+  ipcMain.handle("app:modelsDevDefaults", (_event, query: ModelDevQuery) =>
+    wrap(() => modelDevDefaults(query)),
   );
   ipcMain.handle("app:listPackages", () => wrap(() => host.listPackages()));
   ipcMain.handle("app:installPackage", (_event, name: string) => wrap(() => host.installPackage(name)));

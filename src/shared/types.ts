@@ -247,6 +247,41 @@ export interface ProviderOption {
   supportsOAuth: boolean;
 }
 
+/** models.dev 单模型参考价，单位与 pi 的 models.json 一致（美元 / 百万 token）。 */
+export interface ModelDevCost {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+}
+
+/**
+ * models.dev 目录里某个模型的默认元数据。
+ * 只用来补 models.json 里用户没填过的字段，不覆盖显式配置。
+ */
+export interface ModelDevDefaults {
+  id: string;
+  name?: string;
+  contextWindow?: number;
+  maxTokens?: number;
+  reasoning?: boolean;
+  /** pi 只认 text / image，models.dev 的 pdf/audio/video 会被过滤掉。 */
+  input?: string[];
+  thinkingLevels?: ThinkingLevel[];
+  defaultThinkingLevel?: ThinkingLevel | null;
+  cost?: ModelDevCost;
+  /** 命中的 models.dev provider key，用于在界面上标注数据来源。 */
+  source: string;
+}
+
+/** 一次查询：按 provider 身份 + 模型 id 列表，批量取默认元数据。 */
+export interface ModelDevQuery {
+  providerId?: string;
+  name?: string;
+  baseUrl?: string;
+  modelIds: string[];
+}
+
 export interface CustomModelConfig {
   id: string;
   name?: string;

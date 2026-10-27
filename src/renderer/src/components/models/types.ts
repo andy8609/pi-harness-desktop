@@ -5,6 +5,7 @@ import {
   orderedThinkingLevels,
   type CustomModelConfig,
   type CustomProviderConfig,
+  type ModelDevCost,
   type ModelsFile,
 } from "@shared/types";
 
@@ -32,6 +33,10 @@ export interface UiModelBinding {
   api?: string;
   /** 桌面思考档位到网关真实值的映射（如 minimal → low）。 */
   thinkingLevelMap?: Record<string, string | null>;
+  /** 每百万 token 参考价；来自 models.dev 或旧配置，pi 用它算会话费用。 */
+  cost?: ModelDevCost;
+  /** 默认元数据来源（models.dev），仅用于界面提示，不写入 models.json。 */
+  source?: string;
 }
 
 export interface UiProvider {
@@ -131,6 +136,7 @@ export function providerFromConfig(id: string, config: CustomProviderConfig): Ui
       compat: model.compat,
       api: model.api,
       thinkingLevelMap: model.thinkingLevelMap,
+      cost: model.cost,
     })),
   };
 }
@@ -152,6 +158,7 @@ export function configFromProvider(provider: UiProvider): CustomProviderConfig {
     ...(model.thinkingLevelMap && Object.keys(model.thinkingLevelMap).length > 0
       ? { thinkingLevelMap: model.thinkingLevelMap }
       : {}),
+    ...(model.cost && Object.keys(model.cost).length > 0 ? { cost: model.cost } : {}),
   }));
   return {
     ...(provider.name.trim() ? { name: provider.name.trim() } : {}),

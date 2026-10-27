@@ -1,4 +1,4 @@
-import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, FlatTreeNode, InstalledResource, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThemeMode, ThinkingLevel } from "@shared/types";
+import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, FlatTreeNode, InstalledResource, ModelDevQuery, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThemeMode, ThinkingLevel } from "@shared/types";
 import type { McpScope, McpServerInput, McpServerRecord, McpServerStatus, McpSnapshot, McpToolView } from "@shared/mcp";
 declare const api: {
     getState: () => Promise<any>;
@@ -60,6 +60,7 @@ declare const api: {
     listCatalog: () => Promise<any>;
     refreshCatalog: () => Promise<any>;
     listRemoteModels: (baseUrl: string, apiKey?: string) => Promise<any>;
+    modelsDevDefaults: (query: ModelDevQuery) => Promise<any>;
     listPackages: () => Promise<any>;
     installPackage: (name: string) => Promise<any>;
     removePackage: (source: string) => Promise<any>;

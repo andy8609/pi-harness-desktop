@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { CustomProviderConfig } from "@shared/types";
+import type { CustomProviderConfig, ModelDevDefaults } from "@shared/types";
+import { defaultsKey, loadModelDefaults } from "../../lib/models-dev";
 import { listRemoteModels, type RemoteModel } from "../../lib/remote-models";
 import { useAppStore } from "../../stores/app-store";
 import { HeaderEditor, pairsToRecord, recordToPairs, type HeaderPair } from "./HeaderEditor";
@@ -70,6 +71,8 @@ export function ProviderDialog({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [remote, setRemote] = useState<RemoteModel[]>([]);
   const [loading, setLoading] = useState(false);
+  const [defaults, setDefaults] = useState<Record<string, ModelDevDefaults>>({});
+  const [defaultsLoading, setDefaultsLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
 
@@ -81,26 +84,116 @@ export function ProviderDialog({
   const resolvedApi = named ? preset!.api : api;
 
   const rows = useMemo<ModelRow[]>(() => {
+    // models.dev 只补 row 里空着的字段；用户填过的值一律保留。
+    const withDefaults = (row: ModelRow): ModelRow => {
+      const fallback = defaults[defaultsKey(row.id)];
+      if (!fallback) return row;
+      return {
+        ...row,
+        displayName: row.displayName === row.id && fallback.name ? fallback.name : row.displayName,
+        contextWindow: row.contextWindow ?? fallback.contextWindow,
+        maxTokens: row.maxTokens ?? fallback.maxTokens,
+        reasoning: row.reasoning ?? fallback.reasoning,
+        input: row.input ?? fallback.input,
+        thinkingLevels: row.thinkingLevels ?? fallback.thinkingLevels,
+        defaultThinkingLevel: row.defaultThinkingLevel ?? fallback.defaultThinkingLevel,
+        cost: row.cost ?? fallback.cost,
+        source: fallback.source,
+      };
+    };
+
     const byId = new Map<string, ModelRow>();
     for (const model of remote) {
-      byId.set(model.id.toLowerCase(), { id: model.id, displayName: model.name ?? model.id });
+      byId.set(model.id.toLowerCase(), withDefaults({ id: model.id, displayName: model.name ?? model.id }));
     }
     for (const binding of models) {
       const key = binding.id.toLowerCase();
       const existing = byId.get(key);
-      if (existing) {
-        byId.set(key, { ...existing, contextWindow: binding.contextWindow, maxTokens: binding.maxTokens });
-      } else {
-        byId.set(key, {
-          id: binding.id,
-          displayName: binding.alias ?? binding.id,
-          contextWindow: binding.contextWindow,
-          maxTokens: binding.maxTokens,
-        });
-      }
+      const merged: ModelRow = existing
+        ? {
+            ...existing,
+            contextWindow: binding.contextWindow ?? existing.contextWindow,
+            maxTokens: binding.maxTokens ?? existing.maxTokens,
+            reasoning: binding.reasoning ?? existing.reasoning,
+            input: binding.input ?? existing.input,
+            thinkingLevels:
+              binding.thinkingLevels.length > 0 ? binding.thinkingLevels : existing.thinkingLevels,
+            defaultThinkingLevel: binding.defaultThinkingLevel ?? existing.defaultThinkingLevel,
+            cost: binding.cost ?? existing.cost,
+          }
+        : {
+            id: binding.id,
+            displayName: binding.alias ?? binding.id,
+            contextWindow: binding.contextWindow,
+            maxTokens: binding.maxTokens,
+            reasoning: binding.reasoning,
+            input: binding.input,
+            thinkingLevels: binding.thinkingLevels.length > 0 ? binding.thinkingLevels : undefined,
+            defaultThinkingLevel: binding.defaultThinkingLevel,
+            cost: binding.cost,
+          };
+      byId.set(key, withDefaults(merged));
     }
     return [...byId.values()];
-  }, [remote, models]);
+  }, [remote, models, defaults]);
+
+  /** 向 models.dev 要默认元数据：失败静默（默认值只是辅助信息）。 */
+  const loadDefaults = async (ids: string[]) => {
+    const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+    if (unique.length === 0) return;
+    setDefaultsLoading(true);
+    try {
+      const map = await loadModelDefaults({
+        providerId: providerId.trim() || preset?.id,
+        name: resolvedName || undefined,
+        baseUrl: resolvedBaseUrl || undefined,
+        modelIds: unique,
+      });
+      if (Object.keys(map).length === 0) return;
+      setDefaults((prev) => {
+        const next = { ...prev };
+        for (const [id, value] of Object.entries(map)) next[defaultsKey(id)] = value;
+        return next;
+      });
+    } finally {
+      setDefaultsLoading(false);
+    }
+  };
+
+  // 默认值到位后，把已选模型里仍为空的字段补齐（不碰用户填过的值）。
+  useEffect(() => {
+    if (Object.keys(defaults).length === 0) return;
+    setModels((current) => {
+      let changed = false;
+      const next = current.map((binding) => {
+        const fallback = defaults[defaultsKey(binding.id)];
+        if (!fallback) return binding;
+        const patch: Partial<UiModelBinding> = {};
+        if (binding.contextWindow === undefined && fallback.contextWindow !== undefined) {
+          patch.contextWindow = fallback.contextWindow;
+        }
+        if (binding.maxTokens === undefined && fallback.maxTokens !== undefined) {
+          patch.maxTokens = fallback.maxTokens;
+        }
+        if (binding.input === undefined && fallback.input !== undefined) patch.input = fallback.input;
+        if (binding.cost === undefined && fallback.cost !== undefined) patch.cost = fallback.cost;
+        if (binding.thinkingLevels.length === 0 && (fallback.thinkingLevels?.length ?? 0) > 0) {
+          patch.thinkingLevels = fallback.thinkingLevels;
+          patch.defaultThinkingLevel = binding.defaultThinkingLevel ?? fallback.defaultThinkingLevel ?? null;
+        }
+        if (
+          binding.reasoning === undefined &&
+          (fallback.reasoning || (fallback.thinkingLevels?.length ?? 0) > 0)
+        ) {
+          patch.reasoning = true;
+        }
+        if (Object.keys(patch).length === 0) return binding;
+        changed = true;
+        return { ...binding, ...patch, source: binding.source ?? fallback.source };
+      });
+      return changed ? next : current;
+    });
+  }, [defaults]);
 
   const fetchModels = async () => {
     const url = resolvedBaseUrl.trim();
@@ -114,6 +207,7 @@ export function ProviderDialog({
       const list = await listRemoteModels(url, apiKey.trim() || initial?.apiKey);
       setRemote(list);
       pushToast("info", `已获取 ${list.length} 个模型`);
+      void loadDefaults([...list.map((item) => item.id), ...models.map((item) => item.id)]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -121,8 +215,9 @@ export function ProviderDialog({
     }
   };
 
-  // Editing an existing service probes its endpoint once on open.
+  // 编辑已有服务时先补默认值，再探一次端点；新建时只补已选模型。
   useEffect(() => {
+    void loadDefaults(models.map((model) => model.id));
     if (editingId && initialUi?.baseUrl) void fetchModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -138,6 +233,8 @@ export function ProviderDialog({
 
   const applyService = (next: string) => {
     setService(next);
+    // 换了服务就是换了目录来源，旧默认值不能带过去
+    setDefaults({});
     const nextPreset = SERVICE_PRESETS.find((item) => item.id === next);
     if (!nextPreset) return;
     setBaseUrl(nextPreset.baseUrl);
@@ -301,6 +398,11 @@ export function ProviderDialog({
 
           {advancedOpen && <HeaderEditor pairs={pairs} onChange={setPairs} />}
 
+          <div className="flex items-center gap-2 text-2xs text-ink-muted">
+            <span>上下文 / 最大输出 / 思考等级 / 参考价未填写时，自动取自 models.dev，可逐项改。</span>
+            {defaultsLoading && <span className="text-accent">读取 models.dev 中…</span>}
+          </div>
+
           <ModelSelectionPanes
             rows={rows}
             models={models}
@@ -309,6 +411,7 @@ export function ProviderDialog({
             error={error}
             canReload={Boolean(resolvedBaseUrl.trim())}
             onReload={() => void fetchModels()}
+            onModelAdded={(id) => void loadDefaults([id])}
             busy={saving}
             listTitle="服务模型"
           />

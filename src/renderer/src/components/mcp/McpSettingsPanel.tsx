@@ -1,5 +1,5 @@
-import { ArrowsClockwise, PencilSimple, Play, PlugsConnected, Plus, Trash } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { PencilSimple, Play, PlugsConnected, Plus, Trash } from "@phosphor-icons/react";
+import { useCallback, useState } from "react";
 import type { McpServerRecord, McpServerStatus, McpSnapshot } from "@shared/mcp";
 import { useAppStore } from "../../stores/app-store";
 import {
@@ -7,7 +7,6 @@ import {
   Button,
   EmptyState,
   IconButton,
-  SectionCard,
   SkeletonList,
   Switch,
   cx,
@@ -15,44 +14,26 @@ import {
 import { McpServerDialog } from "./McpServerDialog";
 import { McpToolList } from "./McpToolList";
 
-const EMPTY: McpSnapshot = { servers: [], statuses: [] };
-
 type DialogState = { record?: McpServerRecord } | null;
 
 /**
- * 设置页的 MCP 分区。
+ * MCP 页面「已安装」Tab。
  *
- * 数据来自 `mcp:list` 全量快照 + `mcp:changed` 推送；不在 zustand 里再存一份，
- * 避免连接状态在多处漂移。所有操作都是 IPC 调用后等待推送刷新。
+ * 快照与加载状态由 `McpPage` 统一持有（两个 Tab 共享），这里只负责
+ * 列表展示与操作。所有操作等待 `mcp:changed` 推送刷新，不在本地维护副本。
  */
-export function McpSettingsPanel() {
+export function McpSettingsPanel({
+  snapshot,
+  loading,
+}: {
+  snapshot: McpSnapshot;
+  loading: boolean;
+}) {
   const pushToast = useAppStore((state) => state.pushToast);
-  const [snapshot, setSnapshot] = useState<McpSnapshot>(EMPTY);
-  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [armedId, setArmedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void window.pi
-      .mcpList()
-      .then((next) => {
-        if (active) setSnapshot(next);
-      })
-      .catch((error: unknown) => {
-        if (active) pushToast("error", error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    const off = window.pi.onMcpChanged((next) => setSnapshot(next));
-    return () => {
-      active = false;
-      off();
-    };
-  }, [pushToast]);
 
   const run = useCallback(
     async (id: string, action: () => Promise<unknown>, success?: string) => {
@@ -69,40 +50,27 @@ export function McpSettingsPanel() {
     [pushToast],
   );
 
-  const refresh = async () => {
-    setLoading(true);
-    try {
-      setSnapshot(await window.pi.mcpRefresh());
-    } catch (error) {
-      pushToast("error", error instanceof Error ? error.message : String(error));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <SectionCard
-      headingLevel={2}
-      title="MCP 服务器"
-      description="通过 Model Context Protocol 接入外部工具。stdio 服务器会在本机启动进程；HTTP 服务器只发起网络请求。"
-      actions={
-        <div className="flex items-center gap-2">
-          <Button size="sm" icon={<ArrowsClockwise size={13} />} disabled={loading} onClick={() => void refresh()}>
-            重新读取
-          </Button>
-          <Button size="sm" variant="primary" icon={<Plus size={13} />} onClick={() => setDialog({})}>
-            新增服务器
-          </Button>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-medium text-ink">已安装的服务器</h2>
+          <p className="text-xs text-ink-muted">
+            停用后不连接、不注册工具，但保留配置。HTTP 服务器返回 401/403 时需在请求头填写 Authorization。
+          </p>
         </div>
-      }
-    >
+        <Button size="sm" variant="primary" icon={<Plus size={13} />} onClick={() => setDialog({})}>
+          新增服务器
+        </Button>
+      </div>
+
       {loading ? (
         <SkeletonList rows={3} />
       ) : snapshot.servers.length === 0 ? (
         <EmptyState
           icon={<PlugsConnected size={22} />}
           title="还没有 MCP 服务器"
-          description="添加一个服务器后，它提供的工具会出现在模型的工具列表里。可先用本地 mock 服务器验证：command 填 node，args 填 scripts/mock-mcp-server.mjs。"
+          description="到「市场」页挑一个常见服务器一键安装，或手动新增。也可以用本地 mock 服务器验证：命令填 node，参数填 scripts/mock-mcp-server.mjs。"
           action={
             <Button variant="primary" size="sm" onClick={() => setDialog({})}>
               新增第一个服务器
@@ -135,7 +103,10 @@ export function McpSettingsPanel() {
                       {server.transport === "stdio" ? (
                         <>
                           <span>·</span>
-                          <span className="max-w-[28rem] truncate" title={[server.command, ...(server.args ?? [])].join(" ")}>
+                          <span
+                            className="max-w-[28rem] truncate"
+                            title={[server.command, ...(server.args ?? [])].join(" ")}
+                          >
                             {server.command} {(server.args ?? []).join(" ")}
                           </span>
                         </>
@@ -150,7 +121,10 @@ export function McpSettingsPanel() {
                     </div>
                     {status?.message && (
                       <p
-                        className={cx("mt-1 text-2xs", status.state === "failed" ? "text-danger" : "text-ink-muted")}
+                        className={cx(
+                          "mt-1 text-2xs",
+                          status.state === "failed" ? "text-danger" : "text-ink-muted",
+                        )}
                         title={status.message}
                       >
                         {status.message}
@@ -164,7 +138,11 @@ export function McpSettingsPanel() {
                       disabled={busy}
                       label={`${server.enabled ? "停用" : "启用"} ${server.label}`}
                       onChange={(next) =>
-                        void run(server.id, () => window.pi.mcpSetEnabled(server.id, next), next ? "已启用" : "已停用")
+                        void run(
+                          server.id,
+                          () => window.pi.mcpSetEnabled(server.id, next),
+                          next ? "已启用" : "已停用",
+                        )
                       }
                     />
                     <Button
@@ -173,12 +151,12 @@ export function McpSettingsPanel() {
                       disabled={busy}
                       onClick={() =>
                         void run(server.id, async () => {
-                          const { status } = await window.pi.mcpTest(server.id);
+                          const { status: next } = await window.pi.mcpTest(server.id);
                           pushToast(
-                            status.state === "ready" ? "info" : "error",
-                            status.state === "ready"
-                              ? `连接成功，发现 ${status.toolCount} 个工具`
-                              : status.message ?? "连接失败",
+                            next.state === "ready" ? "info" : "error",
+                            next.state === "ready"
+                              ? `连接成功，发现 ${next.toolCount} 个工具`
+                              : next.message ?? "连接失败",
                           );
                         })
                       }
@@ -236,13 +214,10 @@ export function McpSettingsPanel() {
         <McpServerDialog
           record={dialog.record}
           onClose={() => setDialog(null)}
-          onSaved={() => {
-            setDialog(null);
-            void refresh();
-          }}
+          onSaved={() => setDialog(null)}
         />
       )}
-    </SectionCard>
+    </div>
   );
 }
 

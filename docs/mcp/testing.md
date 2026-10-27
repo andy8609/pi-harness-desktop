@@ -4,7 +4,7 @@
 
 ```bash
 npm test          # 等价于 npm run test:mcp
-npm run test:mcp  # 全部 MCP 测试（44 个用例）
+npm run test:mcp  # 全部 MCP 测试（82 个用例）
 ```
 
 机制：Node 22 的 TypeScript 类型剥离 + `scripts/ts-resolve-hooks.mjs`（把 `@shared/*` 与无扩展名相对导入解析到 `.ts`），因此测试直接加载源码，不需要先构建。
@@ -20,8 +20,11 @@ npm run test:mcp  # 全部 MCP 测试（44 个用例）
 | `scripts/mcp-client.test.mjs` | 9 | HTTP JSON、HTTP SSE、401、重定向上限与 header 保留、`tools/list` 分页与 64 上限、连接超时、stdio 子进程崩溃、Windows `.cmd`（npx）包装、含空格的绝对 `.cmd` 路径启动 |
 | `scripts/mcp-service.test.mjs` | 7 | 配置变更 → 运行时 → 工具注册联动、禁用后工具移除、工具级开关持久化、删除清理连接、stdio 授权拒绝回滚、授权通过与命令变化重新确认、损坏配置启动 |
 | `scripts/mcp-extension.test.mjs` | 1 | **真实 pi 扩展运行时**：会话 `getAllTools()` 含 MCP 工具、`getActiveToolNames()` 含 MCP 工具、移除服务器后从激活集合消失（定义保留） |
+| `scripts/mcp-catalog.test.mjs` | 7 | 模板占位符与渲染、必填/未声明占位符拒绝、optional 空值丢弃、http 公网 https、搜索匹配、目录宽松解析、内置 15 条逐条可安装 |
+| `scripts/mcp-registry.test.mjs` | 6 | Registry id 生成、npm/pypi/remote 映射、oci 丢弃、参数与分类、合并去重 |
+| `scripts/mcp-market.test.mjs` | 6 | Registry 客户端成功/非 2xx/坏 JSON/超大/超时、条目去重、市场合并与降级、安装校验与取消 |
 
-合计 **44** 个用例，全部不依赖真实网络与外部 MCP 服务器（使用 `scripts/mock-mcp-server.mjs` 与本地 loopback HTTP）。
+合计 **82** 个用例，全部不依赖真实网络与外部 MCP 服务器（使用 `scripts/mock-mcp-server.mjs` 与本地 loopback HTTP）。
 
 ## 3. 关键回归点
 

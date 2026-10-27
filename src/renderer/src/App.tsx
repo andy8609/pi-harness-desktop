@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ChatPane } from "./components/ChatPane";
 import { DialogHost } from "./components/DialogHost";
 import { ExtensionsPage } from "./components/ExtensionsPage";
+import { McpPage } from "./components/mcp/McpPage";
 import { ModelsPage } from "./components/ModelsPage";
 import { SessionsPage } from "./components/SessionsPage";
 import { SettingsPage } from "./components/SettingsPage";
@@ -90,6 +91,7 @@ export function App() {
               {view === "sessions" && <SessionsPage />}
               {view === "extensions" && <ExtensionsPage />}
               {view === "skills" && <SkillsPage />}
+              {view === "mcp" && <McpPage />}
               <div className={view === "models" ? "h-full" : "hidden h-full"}>
                 <ModelsPage />
               </div>

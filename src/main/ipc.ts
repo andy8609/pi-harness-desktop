@@ -7,6 +7,7 @@ import type { DialogBroker } from "./dialog-broker";
 import { listDirectory, readFileText } from "./fs-panel";
 import { modelDevDefaults } from "./models-dev";
 import { registerMcpIpc } from "./mcp/ipc";
+import type { McpMarket } from "./mcp/market";
 import type { McpService } from "./mcp/service";
 import { savePrefs } from "./prefs";
 import { listRemoteModels } from "./remote-models";
@@ -30,7 +31,12 @@ function appVersion(): string {
   return app.getVersion();
 }
 
-export function registerIpc(host: AgentHost, dialogs: DialogBroker, mcp?: McpService): void {
+export function registerIpc(
+  host: AgentHost,
+  dialogs: DialogBroker,
+  mcp?: McpService,
+  market?: McpMarket,
+): void {
   ipcMain.handle("app:getState", () => wrap(() => host.snapshot() ?? null));
   ipcMain.handle("app:openDirectory", () =>
     wrap(async () => {
@@ -202,5 +208,5 @@ export function registerIpc(host: AgentHost, dialogs: DialogBroker, mcp?: McpSer
     dialogs.respond(response);
   });
 
-  if (mcp) registerMcpIpc(mcp);
+  if (mcp) registerMcpIpc(mcp, market);
 }

@@ -20,6 +20,7 @@ import type {
   McpServerInput,
   McpSnapshot,
 } from "@shared/mcp";
+import type { McpCatalogEntry, McpMarketSearchResult } from "@shared/mcp-catalog";
 
 const api = {
   getState: () => ipcRenderer.invoke("app:getState"),
@@ -108,6 +109,10 @@ const api = {
   mcpSetToolEnabled: (id: string, toolName: string, enabled: boolean) =>
     ipcRenderer.invoke("mcp:setToolEnabled", { id, toolName, enabled }),
   mcpRefresh: () => ipcRenderer.invoke("mcp:refresh"),
+  mcpMarketSearch: (query?: string, cursor?: string, more?: boolean) =>
+    ipcRenderer.invoke("mcp:marketSearch", { query, cursor, more }),
+  mcpMarketInstall: (entry: McpCatalogEntry, values: Record<string, string> = {}) =>
+    ipcRenderer.invoke("mcp:marketInstall", { entry, values }),
   respondDialog: (response: DialogResponse) => {
     ipcRenderer.send("dialog:respond", response);
   },

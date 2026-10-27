@@ -66,7 +66,29 @@ $ PI_E2E_BINARY="release/win-unpacked/Pi Desktop.exe" node scripts/e2e-mcp-elect
 
 同时修复了 Windows 下 `spawn("npx")` 的 `ENOENT`：`.cmd` / `.bat` 现在通过 `cmd.exe /d /s /c` 包装执行，`.exe` 与其它平台仍直接 spawn。
 
-### 2.5 打包产物启动冒烟
+### 2.5 MCP 市场（内置 + 官方 Registry）
+
+Node 层实测（`McpMarket.search`，真实网络）：
+
+```
+$ node-import scripts/.probe-market.mjs
+search("context7")：
+  count=4, remoteError=null, nextCursor=false
+  entries:
+    context7                          builtin  stdio
+    ai-smithery-rencosta2025-context7fork  official http
+    com-clauxel-context7docs-context7docs-mcp official http
+    io-github-upstash-context7        official stdio
+search("")：
+  count=114（15 内置 + 99 官方）, remoteError=null, nextCursor=true
+```
+
+- 内置目录 15 条全部通过 `catalogEntryError` 与 `normalizeMcpServerInput`（`mcp-catalog.test.mjs`）。
+- Registry 不可达/超时/坏 JSON 时返回 `remoteError` 且内置条目照常返回（`mcp-market.test.mjs`）。
+- 安装走 `McpService.upsert`，缺值/非法模板被拒绝，stdio 授权取消返回 `cancelled`（`mcp-market.test.mjs`）。
+- UI 手工验收：MCP 页面「市场」Tab 搜索 `context7` → 安装内置 Context7 → 已安装 Tab 显示已连接；断网时顶部出现「在线搜索不可用」提示且内置卡片仍可安装。
+
+### 2.6 打包产物启动冒烟
 
 ```
 $ start "release/win-unpacked/Pi Desktop.exe" → 8 秒后仍存活（alive=True）
@@ -81,10 +103,12 @@ stderr 仅有 Chromium 的 GPU/disk cache 权限告警（复用 userData 目录�
 | 主进程类型检查 | `npx tsc -p tsconfig.node.json --noEmit` | ✅ 0 错误（含修复的 6 处既有错误） |
 | 渲染层类型检查 | `npx tsc -p tsconfig.web.json --noEmit` | ✅ 0 错误 |
 | 构建 | `npm run build` | ✅ main 175 kB / preload 6.5 kB / renderer 1.41 MB |
-| 单元 + 集成测试 | `npm test` | ✅ 42/42 通过 |
+| 单元 + 集成测试 | `npm test` | ✅ 82/82 通过（含市场模板/Registry 映射/市场合并） |
 | 开发产物 E2E | `node scripts/e2e-mcp-electron.mjs` | ✅ |
 | 打包产物 E2E | `PI_E2E_BINARY=... node scripts/e2e-mcp-electron.mjs` | ✅ |
-| 打包产物启动 | 启动 8 秒存活 | ✅ |
+| 打包产物启动 | 启动 8 秒存活 | ✅（仅 Chromium cache 告警） |
+| 打包产物读取真实配置 | `PI_MCP_SELFTEST` + `~/.pi/agent/mcp-servers.json` | ✅ context7 ready / 2 工具 |
+| 列表开关 | 扩展 / Skills 已安装列表 | ✅ 已改为 `Switch`，模型页表单复选框保持原样 |
 
 ## 4. 失败项与处理
 

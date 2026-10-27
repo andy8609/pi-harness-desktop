@@ -1,7 +1,7 @@
 import type { GpaState } from "./gpa";
 import type { GpaPlanResumePreview } from "./gpa-plan-file";
 
-export type AppView = "chat" | "sessions" | "extensions" | "skills" | "models" | "settings";
+export type AppView = "chat" | "sessions" | "extensions" | "skills" | "mcp" | "models" | "settings";
 
 export type CatalogKind = "extension" | "skill";
 

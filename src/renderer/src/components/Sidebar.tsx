@@ -3,6 +3,7 @@ import {
   FolderOpen,
   GearSix,
   Lightning,
+  PlugsConnected,
   PuzzlePiece,
   SquaresFour,
   TreeStructure,
@@ -34,6 +35,7 @@ const NAV_GROUPS: Array<{ id: string; label: string; items: NavItem[] }> = [
     items: [
       { id: "extensions", label: "扩展", icon: PuzzlePiece },
       { id: "skills", label: "Skills", icon: Lightning },
+      { id: "mcp", label: "MCP", icon: PlugsConnected },
       { id: "models", label: "模型", icon: SquaresFour },
     ],
   },

@@ -1,5 +1,6 @@
 import type { CatalogPackage, DesktopSettings, DialogRequest, DialogResponse, FlatTreeNode, InstalledResource, ModelDevQuery, ModelsFile, PromptPayload, QueueMutation, StreamEvent, ThemeMode, ThinkingLevel } from "@shared/types";
 import type { McpScope, McpServerInput, McpServerRecord, McpServerStatus, McpSnapshot, McpToolView } from "@shared/mcp";
+import type { McpCatalogEntry, McpMarketSearchResult } from "@shared/mcp-catalog";
 declare const api: {
     getState: () => Promise<any>;
     openDirectory: () => Promise<any>;
@@ -79,6 +80,8 @@ declare const api: {
     mcpListTools: (id: string) => Promise<{ tools: McpToolView[] }>;
     mcpSetToolEnabled: (id: string, toolName: string, enabled: boolean) => Promise<{ server: McpServerRecord }>;
     mcpRefresh: () => Promise<McpSnapshot>;
+    mcpMarketSearch: (query?: string, cursor?: string, more?: boolean) => Promise<McpMarketSearchResult>;
+    mcpMarketInstall: (entry: McpCatalogEntry, values?: Record<string, string>) => Promise<{ server: McpServerRecord; cancelled?: boolean }>;
     onMcpChanged: (listener: (snapshot: McpSnapshot) => void) => () => Electron.IpcRenderer;
     respondDialog: (response: DialogResponse) => void;
     onEvent: (listener: (event: StreamEvent) => void) => () => Electron.IpcRenderer;

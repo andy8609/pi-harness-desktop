@@ -9,9 +9,12 @@
 | `src/main/agent-host.ts` | 新增 `setMcp/getMcpRuntime`；`createFactory` 注入 MCP 扩展；`initialize` 触发 `connectAll`；`openProject` 更新项目路径并触发连接；`dispose` 关闭 MCP；顺带修复 4 处既有 TS 错误 |
 | `src/main/index.ts` | 组装 `McpService`（`~/.pi/agent/mcp-servers.json`，支持 `PI_MCP_CONFIG_PATH`）；注入 host；`mcp:changed` 广播；stdio 授权确认接入；退出清理；`PI_MCP_SELFTEST` 自检入口 |
 | `src/main/ipc.ts` | `registerIpc` 第三参数 `mcp?: McpService` 并注册 `mcp:` 通道；导出 `wrap`；顺带修复 3 处 `showSaveDialog/showOpenDialog` 类型错误 |
-| `src/preload/index.ts` | 新增 11 个 `mcp*` 方法 + `onMcpChanged` |
+| `src/preload/index.ts` | 新增 13 个 `mcp*` 方法（含市场搜索/安装）+ `onMcpChanged` |
 | `src/preload/index.d.ts` | 对应类型声明 |
-| `src/renderer/src/components/SettingsPage.tsx` | 分组导航新增「MCP」，挂载 `McpSettingsPanel` |
+| `src/renderer/src/components/SettingsPage.tsx` | 移除 MCP 分组（入口迁到侧边栏） |
+| `src/renderer/src/components/Sidebar.tsx` | 资源组新增 MCP（Skills 之后） |
+| `src/renderer/src/App.tsx`、`src/shared/types.ts` | `AppView` 增加 `"mcp"` 并挂载 `McpPage` |
+| `src/renderer/src/components/PackageCatalog.tsx` | 已安装扩展 / Skills 的启用复选框 → 滑动开关 |
 | `.gitignore` | 新增 `!docs/mcp/`，让 MCP 文档入库（其余 `docs/*` 仍忽略） |
 
 ## 2. 新增源码
@@ -31,6 +34,14 @@
 | `src/renderer/src/components/mcp/McpSettingsPanel.tsx` | 设置页 MCP 分区 |
 | `src/renderer/src/components/mcp/McpServerDialog.tsx` | 新增/编辑表单 |
 | `src/renderer/src/components/mcp/McpToolList.tsx` | 工具清单与工具级开关 |
+| `src/renderer/src/components/mcp/McpPage.tsx` | MCP 独立页面（已安装 / 市场） |
+| `src/renderer/src/components/mcp/McpMarketPanel.tsx` | 市场列表：搜索、分类、加载更多、安装入口 |
+| `src/renderer/src/components/mcp/McpCatalogInstallDialog.tsx` | 市场安装表单与命令预览 |
+| `src/shared/mcp-catalog.ts` | 市场模板类型、校验、占位符渲染、搜索匹配 |
+| `src/shared/mcp-catalog-builtin.ts` | 内置 15 条精选模板 |
+| `src/shared/mcp-registry.ts` | 官方 Registry 记录 → 模板映射 |
+| `src/main/mcp/registry-client.ts` | Registry 网络客户端（超时/上限/分页） |
+| `src/main/mcp/market.ts` | 内置 + Registry 合并搜索与安装 |
 
 ## 3. 新增测试与脚本
 
@@ -44,13 +55,16 @@
 | `scripts/mcp-client.test.mjs` | HTTP/SSE/超时/崩溃（7 用例） |
 | `scripts/mcp-service.test.mjs` | 服务联动 + 授权确认（7 用例） |
 | `scripts/mcp-extension.test.mjs` | 真实 pi 会话工具注入（1 用例） |
+| `scripts/mcp-catalog.test.mjs` | 模板引擎与内置目录（7 用例） |
+| `scripts/mcp-registry.test.mjs` | Registry 映射（6 用例） |
+| `scripts/mcp-market.test.mjs` | 网络客户端与市场合并/安装（6 用例） |
 | `scripts/ts-resolve-hooks.mjs` / `ts-resolve-register.mjs` | Node 测试加载 TS 源码的解析钩子 |
 | `scripts/mcp-env-probe.mjs` | 运行时能力探针（spawn + fetch） |
 | `scripts/e2e-mcp-electron.mjs` | Electron 端到端（支持 `PI_E2E_BINARY` 跑打包产物） |
 
 ## 4. 新增文档
 
-`docs/mcp/`：`README.md`、`migration-baseline.md`、`integration-points.md`、`design-decisions.md`、`build-notes.md`、`ipc-contract.md`、`auth.md`、`testing.md`、`e2e-report.md`、`feature-parity.md`、`CHANGES.md`。
+`docs/mcp/`：`README.md`、`market.md`、`market-baseline.md`、`market-design.md`、`migration-baseline.md`、`integration-points.md`、`design-decisions.md`、`build-notes.md`、`ui-inventory.md`、`ipc-contract.md`、`auth.md`、`testing.md`、`e2e-report.md`、`feature-parity.md`、`CHANGES.md`。
 
 ## 5. 运行时数据
 
@@ -69,7 +83,7 @@ git checkout -- package.json package-lock.json .gitignore \
   src/renderer/src/components/SettingsPage.tsx
 
 # 2) 删除新增源码
-rm -rf src/main/mcp src/shared/mcp.ts src/main/extensions/mcp.ts src/renderer/src/components/mcp
+rm -rf src/main/mcp src/shared/mcp.ts src/shared/mcp-catalog.ts src/shared/mcp-catalog-builtin.ts       src/shared/mcp-registry.ts src/main/extensions/mcp.ts src/renderer/src/components/mcp
 
 # 3) 删除测试与脚本
 rm -f scripts/mock-mcp-server.mjs scripts/mcp-env-probe.mjs scripts/e2e-mcp-electron.mjs \
@@ -81,6 +95,8 @@ rm -rf docs/mcp
 # 5) 重新构建验证
 npm run build
 ```
+
+> 回滚后侧边栏不再有 MCP 项，设置页也不会恢复 MCP 分组（两处改动在同一提交内）。
 
 运行时残留（可选）：删除 `~/.pi/agent/mcp-servers.json`。回滚后应用不再读取它。
 

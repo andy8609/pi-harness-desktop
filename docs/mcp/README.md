@@ -10,6 +10,7 @@
 - 隔离：单个服务器失败不影响其它服务器或对话；`tools/call` 失败不重试。
 - 生命周期：应用启动连接全局服务器；切换项目重连该项目可见的服务器；退出时统一关闭子进程。
 - 工具级开关：可单独禁用某个工具，不注册给模型。
+- 市场：内置 15 条精选模板 + 官方 Registry 在线搜索，填表后一键安装（见 `market.md`）。
 
 ## 2. 配置文件
 
@@ -72,7 +73,8 @@
 
 ## 3. 在界面里配置
 
-设置 → **MCP**：
+侧边栏 **资源 → MCP**（位于 Skills 下方）：
+
 
 1. **新增服务器**：填 ID、名称、传输方式；stdio 填命令与参数（参数按命令行写法，含空格的参数用引号），HTTP 填 URL 与请求头。
 2. **保存**：stdio 服务器首次启用会弹出「确认执行本机命令」，确认后才保存并连接。
@@ -80,6 +82,7 @@
 4. **工具**：展开查看最近一次握手的工具清单，可逐个禁用。
 5. **启用/停用**：停用立即断开并移除工具，配置保留。
 6. **删除**：点击一次进入待确认状态，再点一次才删除。
+7. **市场**：切到「市场」Tab，浏览内置目录或在线搜索官方 Registry，点「安装」填写模板需要的值即可。
 
 ## 4. 安全策略
 
@@ -129,4 +132,4 @@ PI_E2E_BINARY="release/win-unpacked/Pi Desktop.exe" \
   node scripts/e2e-mcp-electron.mjs                         # 打包产物端到端
 ```
 
-其他文档：`migration-baseline.md`（源项目基线）、`integration-points.md`（本项目集成点）、`design-decisions.md`（决策）、`ipc-contract.md`（IPC 契约）、`auth.md`（授权）、`testing.md`（测试清单）、`e2e-report.md`（实测报告）、`feature-parity.md`（对照清单）、`CHANGES.md`（文件与回滚）。
+其他文档：`market.md`（市场使用）、`market-baseline.md` / `market-design.md`（市场基线/设计）、`migration-baseline.md`（源项目基线）、`integration-points.md`（本项目集成点）、`design-decisions.md`（决策）、`ui-inventory.md`（UI 与开关清单）、`ipc-contract.md`（IPC 契约）、`auth.md`（授权）、`testing.md`（测试清单）、`e2e-report.md`（实测报告）、`feature-parity.md`（对照清单）、`CHANGES.md`（文件与回滚）。

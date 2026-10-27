@@ -7,6 +7,7 @@ import { setCatalogListener } from "./catalog";
 import { DialogBroker } from "./dialog-broker";
 import { createEventPump } from "./event-pump";
 import { registerIpc } from "./ipc";
+import { McpMarket } from "./mcp/market";
 import { runMcpSelfTest } from "./mcp/selftest";
 import { McpService } from "./mcp/service";
 import { loadPrefs, savePrefs } from "./prefs";
@@ -108,7 +109,8 @@ app.whenReady().then(async () => {
     },
   });
   host.setMcp(mcpService.runtime, mcpService.bridge);
-  registerIpc(host, dialogs, mcpService);
+  const mcpMarket = new McpMarket({ service: mcpService });
+  registerIpc(host, dialogs, mcpService, mcpMarket);
 
   // 端到端自检：仅由 scripts/e2e-mcp-electron.mjs 通过环境变量触发。
   const selfTestOutput = process.env.PI_MCP_SELFTEST?.trim();

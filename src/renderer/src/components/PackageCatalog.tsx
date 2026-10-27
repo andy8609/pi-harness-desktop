@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CatalogKind, CatalogPackage, ConfiguredPackageInfo, InstalledResource, PackageInventory } from "@shared/types";
-import { Badge, Button, EmptyState, SegmentedControl, SkeletonCards, SkeletonList, cx, inputClass } from "./ui";
+import { Badge, Button, EmptyState, SegmentedControl, SkeletonCards, SkeletonList, Switch, cx, inputClass } from "./ui";
 
 export function packageNameFromSource(source: string): string {
   const spec = source.startsWith("npm:") ? source.slice(4) : source;
@@ -108,17 +108,17 @@ export function InstalledToggleList({
         <ul className="divide-y divide-line-subtle">
           {items.map((item) => (
             <li key={`${item.kind}:${item.path}`} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-              <label className="flex min-w-0 items-center gap-2">
-                <input
-                  type="checkbox"
-                  disabled={busy}
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Switch
                   checked={item.enabled}
-                  onChange={(event) => onToggle(item, event.target.checked)}
+                  disabled={busy}
+                  label={`${item.enabled ? "停用" : "启用"} ${item.name}`}
+                  onChange={(next) => onToggle(item, next)}
                 />
                 <span className="truncate text-ink" title={item.path}>
                   {item.name}
                 </span>
-              </label>
+              </div>
               <span className="shrink-0 text-2xs text-ink-muted">
                 {item.origin === "package" ? item.source : item.scope === "user" ? "用户" : "项目"}
               </span>

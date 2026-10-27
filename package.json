@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "test": "npm run test:mcp",
-    "test:mcp": "node --import ./scripts/ts-resolve-register.mjs --test \"test/*.test.mjs\" \"scripts/mcp-*.test.mjs\"",
+    "test:mcp": "node --import ./scripts/ts-resolve-register.mjs --test \"scripts/*.test.mjs\"",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",

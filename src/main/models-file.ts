@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { CustomProviderConfig, ModelsFile } from "@shared/types";
+import type { CustomModelConfig, CustomProviderConfig, ModelsFile } from "@shared/types";
 
 /** Official OpenAI-style gateways that actually accept reasoning_effort / store / max_completion_tokens. */
 const OFFICIAL_OPENAI_COMPAT_HOSTS = [
@@ -283,13 +283,58 @@ export function applyMaxTokensFieldOverrides(file: ModelsFile): boolean {
   return changed;
 }
 
+/** pi 的 cost schema 里这四个费率全部必填（`Type.Number()`），缺一个整个 models.json 都会被判无效。 */
+const COST_RATE_KEYS = ["input", "output", "cacheRead", "cacheWrite"] as const;
+
+function normalizeCostRates(target: Record<string, unknown>): boolean {
+  let changed = false;
+  for (const key of COST_RATE_KEYS) {
+    const value = target[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) continue;
+    target[key] = 0;
+    changed = true;
+  }
+  return changed;
+}
+
+/**
+ * 把 model.cost 规范成 pi 能接受的样子。
+ *
+ * 坑：models.dev 只给 `cost.cache_read`，没有 `cache_write`。原样写进 models.json 后，pi 会报
+ * `cost.cacheWrite: must have required properties cacheWrite` 并**丢弃整个文件**，
+ * 后果是所有自定义 provider 的模型全部消失（界面提示 No models available）。
+ */
+export function normalizeModelCosts(file: ModelsFile): boolean {
+  let changed = false;
+  for (const provider of Object.values(file.providers ?? {})) {
+    for (const model of provider.models ?? []) {
+      if (!model.cost) continue;
+      const cost = { ...(model.cost as Record<string, unknown>) };
+      let touched = normalizeCostRates(cost);
+      if (Array.isArray(cost.tiers)) {
+        cost.tiers = cost.tiers.map((tier) => {
+          if (!tier || typeof tier !== "object") return tier;
+          const next = { ...(tier as Record<string, unknown>) };
+          if (normalizeCostRates(next)) touched = true;
+          return next;
+        });
+      }
+      if (!touched) continue;
+      model.cost = cost as CustomModelConfig["cost"];
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 export function applySafeCustomOpenAiCompat(file: ModelsFile): { file: ModelsFile; changed: boolean } {
   const providers = file.providers ?? {};
-  // 三项都要执行，不能用 || 短路：前面的修正返回 true 会跳过后面的。
+  // 各项都要执行，不能用 || 短路：前面的修正返回 true 会跳过后面的。
   const maxTokensChanged = applyMaxTokensFieldOverrides(file);
   const reasoningChanged = applyReasoningLevelOverrides(file);
   const apiChanged = applyModelApiOverrides(file);
-  let changed = maxTokensChanged || reasoningChanged || apiChanged;
+  const costChanged = normalizeModelCosts(file);
+  let changed = maxTokensChanged || reasoningChanged || apiChanged || costChanged;
   for (const provider of Object.values(providers)) {
     if (!usesOpenAiCompletions(provider)) continue;
     if (isOfficialOpenAICompatHost(provider.baseUrl)) continue;
@@ -345,6 +390,8 @@ export function readModelsFile(path: string): { file: ModelsFile; raw: string; e
 }
 
 export function writeModelsFile(path: string, file: ModelsFile): void {
+  // 最后一道防线：cost 缺字段会让 pi 拒绝整个 models.json，代价是所有模型消失。
+  normalizeModelCosts(file);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(file, null, 2)}\n`, "utf8");
 }

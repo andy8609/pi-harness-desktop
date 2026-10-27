@@ -346,6 +346,20 @@ export function thinkingLevelsFor(model: CatalogModel): ThinkingLevel[] {
   return orderedThinkingLevels(["off", ...efforts]);
 }
 
+/**
+ * pi 的 cost schema 里 input/output/cacheRead/cacheWrite 全部必填（`Type.Number()`），
+ * 缺一项会让**整个 models.json** 被判无效（所有自定义模型消失）。
+ * models.dev 常常不给 cache_write（甚至只给 input/output），这里统一补 0。
+ */
+function completeCost(cost: ModelDevCost): ModelDevCost {
+  return {
+    input: cost.input ?? 0,
+    output: cost.output ?? 0,
+    cacheRead: cost.cacheRead ?? 0,
+    cacheWrite: cost.cacheWrite ?? 0,
+  };
+}
+
 function pickDefaultThinkingLevel(levels: ThinkingLevel[]): ThinkingLevel | null {
   if (levels.length === 0) return null;
   if (levels.includes("medium")) return "medium";
@@ -368,7 +382,7 @@ export function buildDefaults(model: CatalogModel, source: string): ModelDevDefa
           defaultThinkingLevel: pickDefaultThinkingLevel(thinkingLevels),
         }
       : {}),
-    ...(model.cost ? { cost: model.cost } : {}),
+    ...(model.cost ? { cost: completeCost(model.cost) } : {}),
     source,
   };
 }

@@ -3,7 +3,7 @@ import { Composer } from "./Composer";
 import { InlineDialogHost } from "./InlineDialogHost";
 import { MessageList } from "./MessageList";
 import { MessageQueue } from "./MessageQueue";
-import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+import { refreshModelsAndSessions, refreshSessions, useAppStore } from "../stores/app-store";
 import { Button, EmptyState, IconButton, Skeleton, SkeletonList } from "./ui";
 
 /**
@@ -78,7 +78,7 @@ export function ChatPane() {
             icon={<Plus size={14} />}
             onClick={async () => {
               applySnapshot(await window.pi.newSession());
-              await refreshModelsAndSessions();
+              await refreshSessions();
             }}
           >
             新会话
@@ -116,7 +116,7 @@ export function ChatPane() {
       )}
 
       <div className="min-h-0 flex-1">
-        <MessageList messages={snapshot.messages} />
+        <MessageList messages={snapshot.messages} sessionKey={snapshot.sessionFile ?? snapshot.sessionId} />
       </div>
       <div className="px-6">
         <InlineDialogHost />

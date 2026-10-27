@@ -3,7 +3,7 @@ import { Plus, TreeStructure, Trash } from "@phosphor-icons/react";
 import type { SessionListItem, TreeNode } from "@shared/types";
 import { buildTree } from "../lib/tree";
 import { formatTime } from "../lib/text";
-import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+import { refreshSessions, useAppStore } from "../stores/app-store";
 import { SessionTree } from "./SessionTree";
 import {
   Badge,
@@ -64,7 +64,7 @@ export function SessionsPage() {
   };
 
   useEffect(() => {
-    void refreshModelsAndSessions().finally(() => setListLoading(false));
+    void refreshSessions().finally(() => setListLoading(false));
   }, []);
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export function SessionsPage() {
 
   const restoreSession = async (path: string) => {
     applySnapshot(await window.pi.switchSession(path));
-    await refreshModelsAndSessions();
+    await refreshSessions();
     setSelectedPath(path);
     setView("chat");
   };
@@ -97,7 +97,7 @@ export function SessionsPage() {
     try {
       await window.pi.deleteSession(session.path);
       if (deletingCurrent) applySnapshot(await window.pi.getState());
-      await refreshModelsAndSessions();
+      await refreshSessions();
       if (selectedPath === session.path) setSelectedPath(undefined);
       pushToast("info", "已删除会话");
     } catch (error) {
@@ -131,7 +131,7 @@ export function SessionsPage() {
               icon={<Plus size={13} />}
               onClick={async () => {
                 applySnapshot(await window.pi.newSession());
-                await refreshModelsAndSessions();
+                await refreshSessions();
                 setView("chat");
               }}
             >
@@ -144,7 +144,7 @@ export function SessionsPage() {
                   const next = await window.pi.importJsonl();
                   if (next) {
                     applySnapshot(next);
-                    await refreshModelsAndSessions();
+                    await refreshSessions();
                     setView("chat");
                   }
                 }}
@@ -179,7 +179,7 @@ export function SessionsPage() {
               onClick={async () => {
                 if (!name.trim()) return;
                 await window.pi.nameSession(name.trim());
-                await refreshModelsAndSessions();
+                await refreshSessions();
                 pushToast("info", "会话已重命名");
               }}
             >
@@ -211,7 +211,7 @@ export function SessionsPage() {
             <Button
               onClick={async () => {
                 applySnapshot(await window.pi.clone());
-                await refreshModelsAndSessions();
+                await refreshSessions();
                 pushToast("info", "已复制当前分支");
               }}
             >
@@ -256,7 +256,7 @@ export function SessionsPage() {
                       icon={<Plus size={13} />}
                       onClick={async () => {
                         applySnapshot(await window.pi.newSession());
-                        await refreshModelsAndSessions();
+                        await refreshSessions();
                         setView("chat");
                       }}
                     >
@@ -378,7 +378,7 @@ export function SessionsPage() {
                 onFork={async (id) => {
                   await activatePreviewSession();
                   applySnapshot(await window.pi.fork(id));
-                  await refreshModelsAndSessions();
+                  await refreshSessions();
                   setView("chat");
                 }}
               />

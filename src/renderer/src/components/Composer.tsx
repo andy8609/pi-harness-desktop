@@ -18,7 +18,7 @@ import { ModelPicker } from "./ModelPicker";
 import { PlanTimeline } from "./PlanTimeline";
 import { SkillPicker } from "./SkillPicker";
 import { Badge, Button } from "./ui";
-import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+import { refreshModelsAndSessions, refreshSessions, useAppStore } from "../stores/app-store";
 
 const GPA_STAGE_LABEL: Record<GpaStage, string> = {
   off: "关闭",
@@ -133,7 +133,7 @@ export function Composer() {
     switch (command.name) {
       case "new":
         applySnapshot(await window.pi.newSession());
-        await refreshModelsAndSessions();
+        await refreshSessions();
         return true;
       case "settings":
         setView("settings");
@@ -159,7 +159,7 @@ export function Composer() {
         return true;
       case "clone":
         applySnapshot(await window.pi.clone());
-        await refreshModelsAndSessions();
+        await refreshSessions();
         return true;
       case "name":
         if (rest) await window.pi.nameSession(rest);

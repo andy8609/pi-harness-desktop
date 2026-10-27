@@ -1,7 +1,7 @@
 import { Check, HardDrives, Plus, Trash } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CustomProviderConfig, ModelsFile } from "@shared/types";
-import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+import { refreshModels, useAppStore } from "../stores/app-store";
 import { ProviderDialog } from "./models/ProviderDialog";
 import { listProviders, type UiProvider } from "./models/types";
 import {
@@ -60,7 +60,7 @@ function DefaultModelSection({ providers }: { providers: UiProvider[] }) {
   const setDefault = async (provider: string, id: string) => {
     try {
       await window.pi.updateSettings({ defaultProvider: provider, defaultModel: id });
-      await refreshModelsAndSessions();
+      await refreshModels();
       pushToast("info", `默认模型已设为 ${provider}/${id}`);
     } catch (error) {
       pushToast("error", error instanceof Error ? error.message : String(error));
@@ -190,7 +190,7 @@ export function ModelsPage() {
 
   const save = async (next: ModelsFile) => {
     await window.pi.saveModelsFile(next);
-    await refreshModelsAndSessions();
+    await refreshModels();
     setFile(next);
     setRaw(JSON.stringify(next, null, 2));
   };
@@ -219,7 +219,7 @@ export function ModelsPage() {
       return;
     }
     await window.pi.updateSettings({ defaultProvider: provider.id, defaultModel: first });
-    await refreshModelsAndSessions();
+    await refreshModels();
     pushToast("info", `默认模型已设为 ${provider.id}/${first}`);
   };
 

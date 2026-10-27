@@ -1,5 +1,5 @@
 import { ArrowDown, Copy, PencilSimple, TerminalWindow } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMessage, WatchdogReport } from "@shared/types";
@@ -192,7 +192,15 @@ function IconAction({
 /** 稳定空数组：selector 返回新数组会触发 useSyncExternalStore 无限更新。 */
 const EMPTY_WATCHDOG_REPORTS: WatchdogReport[] = [];
 
-export function MessageList({ messages }: { messages: ChatMessage[] }) {
+/**
+ * 首屏渲染的轮次数。
+ *
+ * 大会话（数百条消息 + 长工具输出）一次性 markdown 渲染要几秒，且每次流式更新都会全量重算。
+ * 默认只渲染尾部，滚动到顶部再逐页加载更早的内容。
+ */
+const PAGE_SIZE = 80;
+
+export function MessageList({ messages, sessionKey }: { messages: ChatMessage[]; sessionKey?: string }) {
   const busy = useAppStore((state) => state.busy);
   const watchdogReports = useAppStore((state) => state.snapshot?.watchdogReports ?? EMPTY_WATCHDOG_REPORTS);
   const pushToast = useAppStore((state) => state.pushToast);
@@ -201,6 +209,30 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const anchorOffset = useRef<number | null>(null);
+
+  // 切换会话时回到“只渲染尾部”
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [sessionKey]);
+
+  const hiddenCount = Math.max(0, items.length - visibleCount);
+  const visibleItems = hiddenCount > 0 ? items.slice(hiddenCount) : items;
+
+  // 展开更早的内容时保持视口位置（否则新插入的节点会把当前阅读位置顶飞）
+  useLayoutEffect(() => {
+    if (anchorOffset.current === null) return;
+    const element = scrollRef.current;
+    if (element) element.scrollTop = element.scrollHeight - anchorOffset.current;
+    anchorOffset.current = null;
+  }, [visibleCount, scrollRef]);
+
+  const loadEarlier = () => {
+    const element = scrollRef.current;
+    anchorOffset.current = element ? element.scrollHeight - element.scrollTop : null;
+    setVisibleCount((count) => count + PAGE_SIZE);
+  };
 
   useEffect(() => {
     scheduleFollowScroll();
@@ -259,14 +291,21 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
     <div className="relative h-full min-h-0">
       <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-auto px-6 py-4">
         <div className="mx-auto max-w-5xl space-y-5">
-          {items.map((item, index) => {
+          {hiddenCount > 0 && (
+            <div className="flex justify-center">
+              <Button size="sm" variant="secondary" onClick={loadEarlier}>
+                加载更早的 {Math.min(PAGE_SIZE, hiddenCount)} 条（还有 {hiddenCount} 条）
+              </Button>
+            </div>
+          )}
+          {visibleItems.map((item, index) => {
             const isUser = item.message.role === "user";
-            const streaming = busy && index === items.length - 1 && item.message.role === "assistant";
+            const streaming = busy && index === visibleItems.length - 1 && item.message.role === "assistant";
             const editing = Boolean(item.message.entryId) && editingId === item.message.entryId;
             const text = contentText(item.message.content);
             return (
               <article
-                key={`${item.message.role}-${index}-${item.message.entryId ?? item.message.timestamp ?? ""}`}
+                key={item.message.entryId ?? `${item.message.role}-${item.message.timestamp ?? index}`}
                 className={`group flex flex-col ${isUser ? "items-end" : "items-start"}`}
               >
                 <div

@@ -404,6 +404,36 @@ export async function bootstrapApp(): Promise<void> {
   });
 }
 
+/**
+ * 刷新会话列表（增量索引，开销很小）。
+ *
+ * 会话页、新会话、删除会话这些场景只影响列表，不需要连带重拉模型目录。
+ */
+export async function refreshSessions(): Promise<void> {
+  const sessions = await window.pi.listSessions().catch(() => []);
+  useAppStore.setState({ sessions });
+}
+
+/** 刷新模型目录 + 提供商 + 设置（改模型、登录、默认模型时用）。 */
+export async function refreshModels(): Promise<void> {
+  const [modelLists, settings] = await Promise.all([
+    window.pi.listModels().catch(() => ({ models: [], providers: [] })),
+    window.pi.getSettings().catch(() => ({})),
+  ]);
+  useAppStore.setState({
+    models: modelLists.models,
+    providers: modelLists.providers,
+    settings,
+  });
+}
+
+/** 刷新斜杠命令（安装/卸载扩展后）。 */
+export async function refreshCommands(): Promise<void> {
+  const commands = await window.pi.getCommands().catch(() => []);
+  useAppStore.setState({ commands });
+}
+
+/** 全量刷新：切换项目、重载资源这类场景用。 */
 export async function refreshModelsAndSessions(): Promise<void> {
   const [sessions, modelLists, settings, commands] = await Promise.all([
     window.pi.listSessions().catch(() => []),

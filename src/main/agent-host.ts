@@ -154,6 +154,7 @@ import {
   type PackageContext,
 } from "./package-ops";
 import { buildSnapshot, collectDisplayMessages, flattenTree, mergeWatchdogIntoMessages } from "./serialize";
+import { listSessionsFast, readSessionTree } from "./session-index";
 
 type EventSink = (event: StreamEvent) => void;
 
@@ -1067,17 +1068,22 @@ export class AgentHost {
 
   async listSessions(): Promise<SessionListItem[]> {
     const cwd = this.runtime?.cwd ?? this.cwd;
-    const sessions = await SessionManager.list(cwd);
-    return sessions.map((info) => ({
-      path: info.path,
-      id: info.id,
-      name: info.name,
-      cwd: info.cwd,
-      created: info.created.toISOString(),
-      modified: info.modified.toISOString(),
-      messageCount: info.messageCount,
-      firstMessage: info.firstMessage,
-    }));
+    try {
+      // 增量索引：只重新解析改动过的会话文件，避免每次刷新都扫全部 jsonl
+      return await listSessionsFast(cwd);
+    } catch {
+      const sessions = await SessionManager.list(cwd);
+      return sessions.map((info) => ({
+        path: info.path,
+        id: info.id,
+        name: info.name,
+        cwd: info.cwd,
+        created: info.created.toISOString(),
+        modified: info.modified.toISOString(),
+        messageCount: info.messageCount,
+        firstMessage: info.firstMessage,
+      }));
+    }
   }
 
   /**
@@ -1582,10 +1588,10 @@ export class AgentHost {
     return snapshot;
   }
 
-  getTree(path?: string): FlatTreeNode[] {
+  async getTree(path?: string): Promise<FlatTreeNode[]> {
     const currentFile = this.runtime?.session?.sessionFile;
     if (path && path !== currentFile) {
-      return flattenTree(SessionManager.open(path).getTree());
+      return flattenTree(readSessionTree(path));
     }
     const session = this.runtime?.session;
     if (!session) return [];

@@ -1,7 +1,7 @@
 import { CaretDown, Check } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { THINKING_LEVEL_LABEL, orderedThinkingLevels, type ThinkingLevel } from "@shared/types";
-import { refreshModelsAndSessions, useAppStore } from "../stores/app-store";
+import { refreshModels, useAppStore } from "../stores/app-store";
 
 export function ModelPicker({
   placement = "down",
@@ -48,7 +48,7 @@ export function ModelPicker({
           const [provider, ...rest] = value.split("/");
           try {
             await window.pi.setModel(provider, rest.join("/"));
-            await refreshModelsAndSessions();
+            await refreshModels();
           } catch (error) {
             pushToast("error", error instanceof Error ? error.message : String(error));
           }

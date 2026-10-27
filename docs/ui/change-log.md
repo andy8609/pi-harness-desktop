@@ -269,3 +269,27 @@ Composer（6 个区块无分隔）     建议区 → 附件区 → 输入框（�
 
 - `prefers-reduced-motion: reduce`：全部时长变量缩短，仅保留颜色与透明度变化。
 - `:root[data-motion="off"]`：所有动画/过渡压到 1ms，供截图与测试（对应规范 `ArcMotionLevel.Off`）。
+
+---
+
+## T12 会话历史加载性能 — 主进程索引 + 渐进渲染
+
+**改动文件**：`src/main/session-index.ts`（新增）、`src/main/agent-host.ts`、`src/renderer/src/stores/app-store.ts`、`src/renderer/src/components/MessageList.tsx`、`ChatPane.tsx`、`SessionsPage.tsx`、`Composer.tsx`、`ModelPicker.tsx`、`ModelsPage.tsx`
+
+### 问题
+
+`SessionManager.list(cwd)` 每次调用都会把会话目录里所有 `.jsonl` 流式解析一遍（统计 `messageCount` / `firstMessage` / `modified`）。桌面端在一次会话过程中会触发十几次刷新（新会话、切模型、删除、切页），全部跑在主进程单线程上，实测 19 个会话 / 11MB 目录每次 130~300ms，直接卡住 UI 的 IPC。
+
+### 改造
+
+| 项 | 改造前 | 改造后 |
+|---|---|---|
+| 会话列表 | 每次全量重解析所有会话文件 | 按 `(mtimeMs, size)` 增量索引，只重解析刚写过的会话；命中缓存 3ms（实测 142ms → 3ms） |
+| 刷新粒度 | `refreshModelsAndSessions()` 一把抓，切会话/新会话也重拉模型目录 | 拆为 `refreshSessions()` / `refreshModels()` / `refreshCommands()`，会话页只刷列表 |
+| 历史会话树 | 每次点选都 `SessionManager.open()` 全量解析 | 按 `mtime/size` 缓存解析结果 |
+| 消息渲染 | 一次性渲染全部历史（含长工具输出，每条都过 markdown） | 首屏只渲染最近 80 条，顶部「加载更早」逐页展开并保持视口锚点；消息 key 改用 `entryId`，展开历史时不再重挂载 |
+
+### 验收
+
+- `scripts/session-index.test.mjs`：4 条用例（解析字段、缓存复用、删除淘汰、目录缺失），与 `SessionManager.list` 在真实目录上逐字段比对 0 差异。
+- `npm test`：44 passed；`tsc --noEmit` 两套配置 0 错误；`npm run build` 通过。
